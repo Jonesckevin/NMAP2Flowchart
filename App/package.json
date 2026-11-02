@@ -1,0 +1,40 @@
+{
+  "name": "nmap2flowchart",
+  "productName": "NMAP2Flowchart",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "imports": {
+    "#app-bundle": "./build/sea/embedded-app.mjs"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "api": "node server/index.mjs",
+    "test:api": "node --test server/api.test.mjs server/static.test.mjs",
+    "standalone": "node scripts/build-standalone.mjs",
+    "standalone:all": "node scripts/build-standalone.mjs --target all",
+    "standalone:portable": "node scripts/build-standalone.mjs --portable",
+    "standalone:bundle": "node scripts/build-standalone.mjs --bundle-only",
+    "standalone:smoke": "node scripts/smoke-standalone.mjs"
+  },
+  "dependencies": {
+    "@xyflow/react": "^12.12.0",
+    "fast-xml-parser": "^5.11.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "esbuild": "^0.28.2",
+    "oxlint": "^1.89.0",
+    "postject": "^1.0.0-alpha.6",
+    "typescript": "~7.0.2",
+    "vite": "^8.3.5"
+  }
+}

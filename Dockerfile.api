@@ -1,0 +1,24 @@
+ARG NODE_VERSION=24-alpine
+
+FROM node:${NODE_VERSION} AS runtime
+
+ENV NODE_ENV=production
+
+WORKDIR /app
+
+RUN mkdir -p /data && chown node:node /data
+
+COPY --chown=node:node App/server ./server
+
+USER node
+
+ENV NMAP_API_PORT=8090 \
+    NMAP_API_HOST=0.0.0.0 \
+    NMAP_DATA_DIR=/data
+
+EXPOSE 8090
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:8090/api/health >/dev/null || exit 1
+
+CMD ["node", "server/index.mjs"]

@@ -1,0 +1,135 @@
+name: Portable bundle release
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      portable_folders:
+        description: 'Publish nmap2flowchart-portable-*.zip (bundled signed node + app.cjs + launcher; downloads ~215 MB of Node.js distributions)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: portable-release
+  cancel-in-progress: true
+
+env:
+  RELEASE_TAG: portable-latest
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: App
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: App/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test the API and the embedded static handler
+        run: npm run test:api
+
+      - name: Build app.cjs
+        run: npm run standalone:bundle
+
+      - name: Build portable folders
+        if: github.event_name == 'workflow_dispatch' && inputs.portable_folders
+        run: npm run standalone:portable -- --skip-frontend
+
+      - name: Assemble release assets
+        run: |
+          set -euo pipefail
+          mkdir -p ../release-assets
+          cp ../release/app.cjs ../release/app.cjs.sha256 ../release-assets/
+          for platform in win-x64 linux-x64; do
+            folder="../release/nmap2flowchart-portable-$platform"
+            if [ -d "$folder" ]; then
+              (cd ../release && zip -q -r "../release-assets/nmap2flowchart-portable-$platform.zip" "nmap2flowchart-portable-$platform")
+            fi
+          done
+          ls -lh ../release-assets
+
+      - name: Write release notes
+        env:
+          COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          notes=../release-notes.md
+          cat > "$notes" <<'MARKDOWN'
+          One file, rebuilt on every push to the default branch: `app.cjs` holds the compiled
+          editor **and** the optional accounts API, so nothing else is downloaded at runtime.
+
+          ## Run it
+
+          ```bash
+          node app.cjs          # serves http://127.0.0.1:8080/ and opens your browser
+          ```
+
+          Needs **Node.js 24 or newer** — nothing to install, no npm packages, no network access.
+
+          Useful flags: `--port <n>` (a busy port moves on, `0` picks any), `--host <addr>`,
+          `--no-open`, `--auth` (local accounts and project autosave in SQLite),
+          `--data-dir <dir>`, `--help`.
+
+          ## Verify
+
+          ```bash
+          sha256sum -c app.cjs.sha256      # Windows: certutil -hashfile app.cjs SHA256
+          ```
+
+          ## No Node.js on the target machine?
+
+          `node app.cjs` needs a runtime. For a machine without Node.js — including Windows
+          Sandbox — download `nmap2flowchart-portable-<platform>.zip` when it is attached below: it
+          ships an unmodified, signed `node.exe` plus `app.cjs` and a `start.cmd` / `start.sh`,
+          which Windows Smart App Control accepts where the single-file executable does not.
+
+          ---
+
+          Built from `__COMMIT__` (version `__VERSION__`) on __DATE__.
+          MARKDOWN
+          sed -i \
+            -e "s/__COMMIT__/${COMMIT:0:7}/" \
+            -e "s/__VERSION__/${version}/" \
+            -e "s|__DATE__|$(date -u '+%Y-%m-%d %H:%M UTC')|" \
+            "$notes"
+          cat "$notes"
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          if gh release view "$RELEASE_TAG" --repo "$repo" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" --repo "$repo" \
+              --title "NMAP2Flowchart portable app.cjs (latest)" \
+              --notes-file ../release-notes.md
+          else
+            gh release create "$RELEASE_TAG" --repo "$repo" \
+              --title "NMAP2Flowchart portable app.cjs (latest)" \
+              --notes-file ../release-notes.md \
+              --target "$COMMIT"
+          fi
+          gh release upload "$RELEASE_TAG" --repo "$repo" ../release-assets/* --clobber
+          gh release view "$RELEASE_TAG" --repo "$repo" --json url,assets --jq '{url, assets: [.assets[].name]}'

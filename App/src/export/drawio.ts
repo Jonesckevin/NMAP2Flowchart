@@ -1,0 +1,175 @@
+import { isLayerVisible, layerMap, nodeTitle, edgeLine, edgePath, type DiagramDoc, type DiagramNode } from '../doc/types';
+import { absolutePosition, measureSection } from '../doc/measure';
+import { iconEmoji } from '../icons/registry';
+import { portSummaryOr, riskyPorts } from '../model/types';
+import { HOP_H, HOP_W, HOST_H, HOST_W, NOTE_H, NOTE_W, ORIGIN_H, ORIGIN_W } from '../graph/layout';
+
+const esc = (value: string) =>
+  value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+const cellId = (id: string) => `c_${id.replace(/[^0-9a-zA-Z]+/g, '_')}`;
+
+const SECTION_STYLE =
+  'rounded=0;html=1;dashed=1;dashPattern=6 6;fillColor=#f6f8fb;strokeColor=#b6c1d1;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontColor=#5a6a7d;fontStyle=1;fontSize=12;';
+const HOST_STYLE =
+  'rounded=1;html=1;whiteSpace=wrap;fillColor=#ffffff;strokeColor=#c3ccd9;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;spacingRight=8;fontSize=11;fontColor=#111827;arcSize=8;';
+const NOTE_STYLE =
+  'rounded=1;html=1;whiteSpace=wrap;fillColor=#fffbe6;strokeColor=#e6d9a2;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;fontSize=11;fontColor=#3b3a2f;arcSize=6;';
+const HOP_STYLE =
+  'rounded=1;html=1;whiteSpace=wrap;fillColor=#eef2f7;strokeColor=#b6c1d1;fontSize=11;fontColor=#334155;arcSize=40;';
+const ORIGIN_STYLE =
+  'rounded=1;html=1;whiteSpace=wrap;fillColor=#1f2937;strokeColor=#0f172a;fontColor=#f8fafc;fontSize=11;align=left;spacingLeft=12;verticalAlign=middle;arcSize=12;';
+
+function vertex(id: string, value: string, style: string, x: number, y: number, w: number, h: number) {
+  return `        <mxCell id="${id}" value="${esc(value)}" style="${style}" vertex="1" parent="1"><mxGeometry x="${Math.round(
+    x,
+  )}" y="${Math.round(y)}" width="${Math.round(w)}" height="${Math.round(h)}" as="geometry"/></mxCell>`;
+}
+
+function edge(id: string, source: string, target: string, style: string, label?: string) {
+  return `        <mxCell id="${id}" value="${esc(label ?? '')}" style="${style}" edge="1" parent="1" source="${source}" target="${target}"><mxGeometry relative="1" as="geometry"/></mxCell>`;
+}
+
+const ROUTE_EDGE = 'html=1;dashed=1;strokeColor=#8ba1b8;endArrow=block;endFill=1;';
+const LINK_EDGE = 'html=1;strokeColor=#22b98c;strokeWidth=2;endArrow=block;endFill=1;';
+
+const PATH_STYLE: Record<string, string> = {
+  curve: 'edgeStyle=none;curved=1;',
+  straight: 'edgeStyle=none;',
+  step: 'edgeStyle=orthogonalEdgeStyle;rounded=0;',
+  smoothstep: 'edgeStyle=orthogonalEdgeStyle;rounded=1;',
+};
+
+const DASH_STYLE: Record<string, string> = {
+  solid: '',
+  dashed: 'dashed=1;dashPattern=9 5;',
+  dotted: 'dashed=1;dashPattern=1.5 4;',
+};
+
+function hostLabel(node: DiagramNode): string {
+  const icon = iconEmoji(node.icon);
+  const lines = [`<b>${esc(icon)} ${esc(nodeTitle(node))}</b>`];
+  if (node.subtitle) lines.push(`<font color="#5a6a7d">${esc(node.subtitle)}</font>`);
+  const risky = node.host ? riskyPorts(node.host).length > 0 : false;
+  const ports = node.host ? portSummaryOr(node.host, 'discovered, no port scan', 5) : '';
+  if (ports && ports !== 'no open ports') lines.push(`<font color="${risky ? '#b91c1c' : '#2563eb'}">${esc(ports)}</font>`);
+  else if (node.host) lines.push('<font color="#8b97a8">no open ports</font>');
+  return lines.join('<br>');
+}
+
+export function toDrawio(doc: DiagramDoc): string {
+  const layers = layerMap(doc.layers);
+  const byId = new Map(doc.nodes.map((node) => [node.id, node]));
+  const visible = doc.nodes.filter((node) => isLayerVisible(layers, node.layerId, doc.focusedLayerId));
+  const visibleIds = new Set(visible.map((node) => node.id));
+  const cells: string[] = [];
+  let maxX = 0;
+  let maxY = 0;
+
+  for (const section of visible.filter((node) => node.kind === 'section')) {
+    const children = visible.filter((node) => node.parentId === section.id);
+    const { w, h } = measureSection(section, children);
+    const pos = absolutePosition(section, byId);
+    maxX = Math.max(maxX, pos.x + w);
+    maxY = Math.max(maxY, pos.y + h);
+    cells.push(
+      vertex(
+        cellId(section.id),
+        `<b>${esc(iconEmoji(section.icon))} ${esc(nodeTitle(section))}</b>`,
+        SECTION_STYLE,
+        pos.x,
+        pos.y,
+        w,
+        h,
+      ),
+    );
+  }
+
+  for (const node of visible) {
+    if (node.kind === 'section') continue;
+    const pos = absolutePosition(node, byId);
+    if (node.kind === 'host') {
+      const risky = node.host ? riskyPorts(node.host).length > 0 : false;
+      const style = risky
+        ? `${HOST_STYLE}strokeColor=${node.accent ?? '#d64545'};strokeWidth=2;`
+        : node.accent
+          ? `${HOST_STYLE}strokeColor=${node.accent};`
+          : HOST_STYLE;
+      maxX = Math.max(maxX, pos.x + HOST_W);
+      maxY = Math.max(maxY, pos.y + HOST_H);
+      cells.push(vertex(cellId(node.id), hostLabel(node), style, pos.x, pos.y, HOST_W, HOST_H));
+    } else if (node.kind === 'note') {
+      const w = node.size?.w ?? NOTE_W;
+      const h = node.size?.h ?? NOTE_H;
+      maxX = Math.max(maxX, pos.x + w);
+      maxY = Math.max(maxY, pos.y + h);
+      cells.push(
+        vertex(
+          cellId(node.id),
+          `<b>${esc(iconEmoji(node.icon))} ${esc(nodeTitle(node))}</b><br><font color="#5b5a48">${esc(
+            node.notes ?? '',
+          )}</font>`,
+          NOTE_STYLE,
+          pos.x,
+          pos.y,
+          w,
+          h,
+        ),
+      );
+    } else if (node.kind === 'hop') {
+      maxX = Math.max(maxX, pos.x + HOP_W);
+      maxY = Math.max(maxY, pos.y + HOP_H);
+      cells.push(
+        vertex(
+          cellId(node.id),
+          `<b>hop ${node.depth ?? 1}</b><br>${esc(nodeTitle(node))}`,
+          HOP_STYLE,
+          pos.x,
+          pos.y,
+          HOP_W,
+          HOP_H,
+        ),
+      );
+    } else {
+      maxX = Math.max(maxX, pos.x + ORIGIN_W);
+      maxY = Math.max(maxY, pos.y + ORIGIN_H);
+      cells.push(
+        vertex(
+          cellId(node.id),
+          `<b>${esc(nodeTitle(node).toUpperCase())}</b><br><font color="#9fb3c8">${esc(
+            node.address ?? node.notes ?? '',
+          )}</font>`,
+          ORIGIN_STYLE,
+          pos.x,
+          pos.y,
+          ORIGIN_W,
+          ORIGIN_H,
+        ),
+      );
+    }
+  }
+
+  for (const link of doc.edges) {
+    if (!visibleIds.has(link.source) || !visibleIds.has(link.target)) continue;
+    const base = link.kind === 'route' ? ROUTE_EDGE : LINK_EDGE;
+    const style = `${PATH_STYLE[edgePath(link)]}${base}${DASH_STYLE[edgeLine(link)] ?? ''}`;
+    cells.push(edge(cellId(link.id), cellId(link.source), cellId(link.target), style, link.label));
+  }
+
+  const pageWidth = Math.round(maxX + 80);
+  const pageHeight = Math.round(maxY + 80);
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="nmap2flowchart" agent="nmap2flowchart" version="24.7.8" type="device">
+  <diagram id="nmap2flowchart" name="${esc(doc.fileName)}">
+    <mxGraphModel dx="${pageWidth}" dy="${pageHeight}" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="${pageWidth}" pageHeight="${pageHeight}" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+${cells.join('\n')}
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
+`;
+}

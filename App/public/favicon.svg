@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="NMAP2Flowchart">
+  <defs>
+    <linearGradient id="tile" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#1b2c41" />
+      <stop offset="1" stop-color="#070b11" />
+    </linearGradient>
+    <linearGradient id="ink" x1="0.12" y1="0" x2="0.88" y2="1">
+      <stop offset="0" stop-color="#63fbd0" />
+      <stop offset="1" stop-color="#0b9a73" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#tile)" />
+  <rect x="0.75" y="0.75" width="62.5" height="62.5" rx="14.25" fill="none" stroke="#a8f0dc" stroke-opacity="0.16" stroke-width="1.2" />
+  <g transform="translate(32 32) scale(0.84) translate(-32 -32)">
+    <path d="M19 32Q32 21 45 32Q32 43 19 32Z" fill="none" stroke="url(#ink)" stroke-width="4" stroke-linejoin="round" />
+    <circle cx="32" cy="32" r="5.2" fill="url(#ink)" />
+    <path d="M45 32h2.8M19 32h-2.8" stroke="url(#ink)" stroke-width="3.8" stroke-linecap="round" />
+    <path d="M47.8 32 53.4 25.4M47.8 32 53.4 38.6M16.2 32 10.6 25.4M16.2 32 10.6 38.6" stroke="url(#ink)" stroke-width="3.6" stroke-linecap="round" />
+    <circle cx="53.4" cy="25.4" r="4.2" fill="url(#ink)" />
+    <circle cx="53.4" cy="38.6" r="4.2" fill="url(#ink)" />
+    <circle cx="10.6" cy="25.4" r="4.2" fill="url(#ink)" />
+    <circle cx="10.6" cy="38.6" r="4.2" fill="url(#ink)" />
+  </g>
+</svg>

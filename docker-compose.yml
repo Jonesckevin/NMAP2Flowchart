@@ -1,0 +1,78 @@
+name: nmap2flowchart
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nmap2flowchart:latest
+    container_name: nmap2flowchart
+    ports:
+      - "${PORT:-8080}:8080"
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    image: nmap2flowchart-api:latest
+    container_name: nmap2flowchart-api
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - nmap2flowchart-data:/data
+    environment:
+      NMAP_AUTH_ENABLED: "${NMAP_AUTH_ENABLED:-false}"
+      NMAP_ALLOW_REGISTRATION: "${NMAP_ALLOW_REGISTRATION:-true}"
+      NMAP_ALLOW_GUEST: "${NMAP_ALLOW_GUEST:-true}"
+      NMAP_SESSION_TTL_HOURS: "${NMAP_SESSION_TTL_HOURS:-720}"
+      NMAP_GUEST_TTL_HOURS: "${NMAP_GUEST_TTL_HOURS:-24}"
+      NMAP_MAX_PROJECT_MB: "${NMAP_MAX_PROJECT_MB:-16}"
+      NMAP_MAX_PROJECTS: "${NMAP_MAX_PROJECTS:-200}"
+      NMAP_TRUST_PROXY: "true"
+      NMAP_DATA_DIR: /data
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8090/api/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+volumes:
+  nmap2flowchart-data:
+    # Reuse the volume created before the rename so existing accounts survive.
+    name: nmap2flowio-data

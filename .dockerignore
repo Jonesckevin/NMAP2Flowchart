@@ -1,0 +1,41 @@
+# The image only needs App/ plus the nginx config; everything else is context bloat.
+.git
+.gitignore
+.github
+.vscode
+.idea
+
+**/node_modules
+**/dist
+**/dist-ssr
+**/*.tsbuildinfo
+**/.vite
+
+# Offline single-executable output: hundreds of MB the image never uses.
+release
+App/build
+
+*.log
+coverage
+.tmp-test
+
+# Local scan data and other XML never belongs in the image.
+*.xml
+*.nmap
+
+# The accounts database lives in a volume, never in the build context.
+# (Only the runtime store — App/src/data holds the bundled sample scan.)
+data
+App/data
+*.db
+*.db-wal
+*.db-shm
+
+# Not needed inside the build stage.
+Dockerfile
+.dockerignore
+docker-compose*.yml
+README.md
+LICENSE
+.env
+.env.*
