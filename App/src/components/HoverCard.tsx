@@ -1,6 +1,7 @@
 import { NodeIcon } from '../icons/NodeIcon';
 import { nodeSubtitle, nodeTitle, type DiagramNode } from '../doc/types';
-import { HIGH_RISK_PORTS, discoveryOnly, openPorts, serviceLabel } from '../model/types';
+import { hexToRgba, type NodeRisk } from '../doc/risk';
+import { discoveryOnly, openPorts, serviceLabel } from '../model/types';
 
 const MAX_PORTS = 10;
 const MAX_SCRIPTS = 3;
@@ -10,6 +11,7 @@ type HoverCardProps = {
   node: DiagramNode;
   anchor: { left: number; top: number; right: number; bottom: number };
   childCount?: number;
+  risk?: NodeRisk | null;
 };
 
 const KIND_LABEL: Record<DiagramNode['kind'], string> = {
@@ -24,7 +26,7 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(value, max));
 }
 
-export function HoverCard({ node, anchor, childCount }: HoverCardProps) {
+export function HoverCard({ node, anchor, childCount, risk }: HoverCardProps) {
   const width = 380;
   const gap = 14;
   const viewportW = window.innerWidth;
@@ -106,6 +108,14 @@ export function HoverCard({ node, anchor, childCount }: HoverCardProps) {
               <span>Status</span>
               <strong className={host.status === 'down' ? 'is-down' : undefined}>{host.status}</strong>
             </div>
+            {risk && (
+              <div>
+                <span>Risk</span>
+                <strong style={{ color: risk.color }}>
+                  {risk.label} · {risk.ports.length}
+                </strong>
+              </div>
+            )}
             {host.hostnames.length > 0 && (
               <div className="is-wide">
                 <span>Hostnames</span>
@@ -148,17 +158,28 @@ export function HoverCard({ node, anchor, childCount }: HoverCardProps) {
               <p className="hover-card__empty">No open ports.</p>
             ) : (
               <ul className="hover-card__ports">
-                {shown.map((port) => (
-                  <li key={`${port.protocol}-${port.port}`}>
-                    <span className={`hover-card__port mono${HIGH_RISK_PORTS.has(port.port) ? ' is-risky' : ''}`}>
-                      {port.port}/{port.protocol}
-                    </span>
-                    <span className="hover-card__service">
-                      {serviceLabel(port)}
-                      {port.extrainfo ? <em> · {port.extrainfo}</em> : null}
-                    </span>
-                  </li>
-                ))}
+                {shown.map((port) => {
+                  const badge = risk?.badges[String(port.port)];
+                  return (
+                    <li key={`${port.protocol}-${port.port}`}>
+                      <span
+                        className={`hover-card__port mono${badge ? ' is-risky' : ''}`}
+                        title={badge ? `${badge.label} port` : undefined}
+                        style={
+                          badge
+                            ? { borderColor: hexToRgba(badge.color, 0.5), color: badge.color, background: hexToRgba(badge.color, 0.14) }
+                            : undefined
+                        }
+                      >
+                        {port.port}/{port.protocol}
+                      </span>
+                      <span className="hover-card__service">
+                        {serviceLabel(port)}
+                        {port.extrainfo ? <em> · {port.extrainfo}</em> : null}
+                      </span>
+                    </li>
+                  );
+                })}
                 {ports.length > shown.length && (
                   <li className="hover-card__more">+{ports.length - shown.length} more in the inspector</li>
                 )}

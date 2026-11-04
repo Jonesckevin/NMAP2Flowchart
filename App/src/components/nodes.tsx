@@ -1,7 +1,8 @@
 import { memo, useCallback, useRef } from 'react';
 import { Handle, NodeResizer, Position, type NodeProps } from '@xyflow/react';
 import type { AppNode } from '../graph/buildRfGraph';
-import { HIGH_RISK_PORTS, discoveryOnly, openPorts, riskyPorts } from '../model/types';
+import { discoveryOnly, openPorts } from '../model/types';
+import { hexToRgba } from '../doc/risk';
 import { NodeIcon } from '../icons/NodeIcon';
 import { nodeSubtitle, nodeTitle } from '../doc/types';
 
@@ -13,7 +14,7 @@ export const HostNode = memo(function HostNode({ data, selected }: NodeProps<App
 
   const host = node.host;
   const open = host ? openPorts(host) : [];
-  const risky = host ? riskyPorts(host) : [];
+  const risk = data.risk ?? null;
   const shown = open.slice(0, open.length > MAX_BADGES ? MAX_BADGES - 1 : MAX_BADGES);
   const overflow = open.length - shown.length;
   const subtitle = nodeSubtitle(node);
@@ -32,13 +33,24 @@ export const HostNode = memo(function HostNode({ data, selected }: NodeProps<App
         'host-node',
         selected ? 'is-selected' : '',
         data.dimmed ? 'is-dimmed' : '',
-        risky.length > 0 ? 'is-risky' : '',
+        risk ? 'is-risky' : '',
         node.stale ? 'is-stale' : '',
         host?.status === 'down' ? 'is-down' : '',
       ]
         .filter(Boolean)
         .join(' ')}
-      style={node.accent ? ({ '--node-accent': node.accent } as React.CSSProperties) : undefined}
+      style={
+        {
+          ...(node.accent ? { '--node-accent': node.accent } : {}),
+          ...(risk
+            ? {
+                '--risk-color': risk.color,
+                '--risk-soft': hexToRgba(risk.color, 0.18),
+              }
+            : {}),
+        } as React.CSSProperties
+      }
+      data-accent={node.accent || undefined}
     >
       <Handle type="target" position={Position.Left} className="node-handle" />
       <div className="host-node__head">
@@ -49,9 +61,13 @@ export const HostNode = memo(function HostNode({ data, selected }: NodeProps<App
         </div>
         <div className="host-node__flags">
           {host?.status === 'down' && <span className="tag tag--down">down</span>}
-          {risky.length > 0 && (
-            <span className="tag tag--risk" title={`${risky.length} high-risk port(s)`}>
-              risk {risky.length}
+          {risk && (
+            <span
+              className="tag tag--risk"
+              title={`${risk.label} · ${risk.tooltip}`}
+              style={{ borderColor: hexToRgba(risk.color, 0.55), color: risk.color }}
+            >
+              {risk.label.toLowerCase()} {risk.ports.length}
             </span>
           )}
           {node.stale && <span className="tag tag--stale">stale</span>}
@@ -60,12 +76,24 @@ export const HostNode = memo(function HostNode({ data, selected }: NodeProps<App
       <div className="host-node__meta">{meta}</div>
       {host && open.length > 0 && (
         <div className="host-node__badges">
-          {shown.map((port) => (
-            <span key={port.port} className={`badge${HIGH_RISK_PORTS.has(port.port) ? ' badge--risk' : ''}`}>
-              {port.port}
-              {port.service ? <em>{port.service.split('/').pop()}</em> : null}
-            </span>
-          ))}
+          {shown.map((port) => {
+            const badge = risk?.badges[String(port.port)];
+            return (
+              <span
+                key={port.port}
+                className={`badge${badge ? ' badge--risk' : ''}`}
+                style={
+                  badge
+                    ? { borderColor: hexToRgba(badge.color, 0.45), color: badge.color, background: hexToRgba(badge.color, 0.12) }
+                    : undefined
+                }
+                title={badge ? `${badge.label} port` : undefined}
+              >
+                {port.port}
+                {port.service ? <em>{port.service.split('/').pop()}</em> : null}
+              </span>
+            );
+          })}
           {overflow > 0 && <span className="badge badge--more">+{overflow}</span>}
         </div>
       )}
@@ -91,6 +119,7 @@ export const SectionNode = memo(function SectionNode({ data, selected }: NodePro
         .filter(Boolean)
         .join(' ')}
       style={node.accent ? ({ '--node-accent': node.accent } as React.CSSProperties) : undefined}
+      data-accent={node.accent || undefined}
     >
       <Handle type="target" position={Position.Left} className="node-handle" />
       {selected && !collapsed && (
@@ -150,6 +179,7 @@ export const HopNode = memo(function HopNode({ data, selected }: NodeProps<AppNo
     <div
       className={`hop-node${selected ? ' is-selected' : ''}${data.dimmed ? ' is-dimmed' : ''}`}
       style={node.accent ? ({ '--node-accent': node.accent } as React.CSSProperties) : undefined}
+      data-accent={node.accent || undefined}
     >
       <Handle type="target" position={Position.Left} className="node-handle" />
       <NodeIcon id={node.icon ?? 'router'} size={15} />
@@ -170,6 +200,7 @@ export const OriginNode = memo(function OriginNode({ data, selected }: NodeProps
     <div
       className={`origin-node${selected ? ' is-selected' : ''}${data.dimmed ? ' is-dimmed' : ''}`}
       style={node.accent ? ({ '--node-accent': node.accent } as React.CSSProperties) : undefined}
+      data-accent={node.accent || undefined}
     >
       <div className="origin-node__head">
         <NodeIcon id={node.icon ?? 'cloud'} size={16} />

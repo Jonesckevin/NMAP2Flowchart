@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { loadRiskPolicy } from './risk.mjs';
 
 export const APP_SLUG = 'nmap2flowchart';
 export const LEGACY_APP_SLUG = 'nmap2flowio';
@@ -36,6 +37,11 @@ export function loadConfig(env = process.env) {
     registerRateMax: Math.round(positive(env.NMAP_REGISTER_RATE_MAX, 3)),
     registerRateWindowSeconds: positive(env.NMAP_REGISTER_RATE_WINDOW, 3600),
     cleanupIntervalSeconds: positive(env.NMAP_CLEANUP_INTERVAL, 3600),
+
+    // Instance-wide risk levels, from NMAP_RISK_LEVELS (JSON) or
+    // NMAP_RISK_POLICY_FILE (path). `null` means "let each browser use its
+    // built-in defaults"; accounts and diagrams can still override it.
+    riskPolicy: loadRiskPolicy(env),
   };
 }
 

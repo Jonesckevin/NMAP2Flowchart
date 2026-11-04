@@ -19,6 +19,7 @@ import {
   sendJson,
 } from './http.mjs';
 import { DuplicateUserError } from './store.mjs';
+import { sanitizeRiskPolicy } from './risk.mjs';
 
 const PROJECT_ID_RE = /^[0-9a-fA-F-]{36}$/;
 const MAX_NAME_LENGTH = 80;
@@ -119,6 +120,9 @@ export function createApiHandler({ config, store, logger = console }) {
         guestLoginEnabled: config.authEnabled && config.guestLoginEnabled,
         guestTtlHours: config.authEnabled ? config.guestTtlHours : 0,
         maxProjectBytes: config.maxProjectBytes,
+        // Instance-wide risk levels (NMAP_RISK_LEVELS / NMAP_RISK_POLICY_FILE).
+        // Served even with accounts off, because it only shapes the diagram.
+        risk: config.riskPolicy ?? null,
         version: 1,
       });
       return;
@@ -216,6 +220,45 @@ export function createApiHandler({ config, store, logger = console }) {
       return;
     }
 
+
+    if (pathname === '/api/preferences') {
+      requireEnabled();
+      const { user } = authenticate(request);
+
+      if (method === 'GET') {
+        const riskJson = store.getRiskPreference(user.userId);
+        let risk = null;
+        if (riskJson) {
+          try {
+            risk = sanitizeRiskPolicy(JSON.parse(riskJson));
+          } catch {
+            risk = null;
+          }
+        }
+        sendJson(response, 200, { risk });
+        return;
+      }
+
+      if (method === 'PUT') {
+        const body = requireObject(
+          await readJsonBody(request, 64 * 1024),
+          'Request body must be an object',
+        );
+        if (!('risk' in body)) throw new HttpError(400, 'Provide a risk policy or null to clear it');
+        if (body.risk === null) {
+          store.clearRiskPreference(user.userId);
+          sendJson(response, 200, { risk: null });
+          return;
+        }
+        const risk = sanitizeRiskPolicy(body.risk);
+        if (!risk) throw new HttpError(400, 'Invalid risk policy');
+        store.setRiskPreference(user.userId, JSON.stringify(risk));
+        sendJson(response, 200, { risk });
+        return;
+      }
+
+      allow(['GET', 'PUT']);
+    }
 
     if (pathname === '/api/projects') {
       requireEnabled();

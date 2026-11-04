@@ -36,6 +36,12 @@ const SCHEMA = `
     updated_at  INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS projects_user ON projects(user_id, updated_at DESC);
+
+  CREATE TABLE IF NOT EXISTS preferences (
+    user_id    TEXT PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
+    risk_json  TEXT,
+    updated_at INTEGER NOT NULL
+  );
 `;
 
 export class DuplicateUserError extends Error {
@@ -109,6 +115,12 @@ export class Store {
          WHERE id = ? AND user_id = ?`,
       ),
       deleteProject: db.prepare('DELETE FROM projects WHERE id = ? AND user_id = ?'),
+      getPreferences: db.prepare('SELECT risk_json, updated_at FROM preferences WHERE user_id = ?'),
+      savePreferences: db.prepare(
+        `INSERT INTO preferences (user_id, risk_json, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(user_id) DO UPDATE SET risk_json = excluded.risk_json, updated_at = excluded.updated_at`,
+      ),
+      deletePreferences: db.prepare('DELETE FROM preferences WHERE user_id = ?'),
     };
   }
 
@@ -233,6 +245,20 @@ export class Store {
 
   deleteProject(userId, id) {
     return this.statements.deleteProject.run(id, userId).changes > 0;
+  }
+
+  /** Stored JSON text of the account's risk policy, or null. */
+  getRiskPreference(userId) {
+    const row = this.statements.getPreferences.get(userId);
+    return row?.risk_json ?? null;
+  }
+
+  setRiskPreference(userId, riskJson, now = Date.now()) {
+    this.statements.savePreferences.run(userId, riskJson ?? null, now);
+  }
+
+  clearRiskPreference(userId) {
+    this.statements.deletePreferences.run(userId);
   }
 }
 

@@ -11,7 +11,8 @@ import {
 import { absolutePosition, measureSection, nodeSize } from '../doc/measure';
 import { HOP_H } from '../graph/layout';
 import { iconById } from '../icons/registry';
-import { openPorts, riskyPorts } from '../model/types';
+import { openPorts } from '../model/types';
+import { hexToRgba, levelForPort, nodeRisk, type RiskPolicy } from '../doc/risk';
 
 
 export type SvgExport = { svg: string; width: number; height: number };
@@ -27,14 +28,11 @@ const INK = {
   sectionMuted: '#6b7a8f',
   card: '#ffffff',
   cardStroke: '#c3ccd9',
-  cardStrokeHot: '#d64545',
   title: '#111827',
   sub: '#5a6a7d',
   meta: '#6b7a8f',
   badgeFill: '#eef2f7',
   badgeText: '#334155',
-  badgeRiskFill: '#fee2e2',
-  badgeRiskText: '#991b1b',
   hopFill: '#eef2f7',
   hopStroke: '#b6c1d1',
   hopText: '#334155',
@@ -198,7 +196,7 @@ function visibleNodes(doc: DiagramDoc): DiagramNode[] {
   return doc.nodes.filter((node) => shown.has(node.id));
 }
 
-export function toSvg(doc: DiagramDoc): SvgExport {
+export function toSvg(doc: DiagramDoc, riskPolicy: RiskPolicy): SvgExport {
   const byId = new Map(doc.nodes.map((node) => [node.id, node]));
   const visible = visibleNodes(doc);
   const shown = new Set(visible.map((node) => node.id));
@@ -292,9 +290,18 @@ export function toSvg(doc: DiagramDoc): SvgExport {
     if (node.kind === 'host') {
       const host = node.host;
       const open = host ? openPorts(host) : [];
-      const risky = host ? riskyPorts(host) : [];
-      const stroke = risky.length > 0 ? INK.cardStrokeHot : (node.accent ?? INK.cardStroke);
-      body.push(rect(b.x, b.y, b.w, b.h, { fill: INK.card, stroke, sw: risky.length > 0 ? 1.6 : 1, rx: 11 }));
+      const risk = nodeRisk(host, riskPolicy);
+      const stroke = risk?.color ?? node.accent ?? INK.cardStroke;
+      body.push(
+        rect(b.x, b.y, b.w, b.h, { fill: INK.card, stroke, sw: risk ? 1.6 : 1, rx: 11 }),
+      );
+      // A risk level owns the stroke, so keep the hand-picked accent visible as a stripe.
+      if (risk && node.accent) {
+        const inset = b.h * 0.18;
+        body.push(
+          rect(b.x + 3, b.y + inset, 4, b.h - inset * 2, { fill: node.accent, rx: 3 }),
+        );
+      }
       body.push(iconMarkup(node.icon, b.x + 11, b.y + 10, 20));
 
       const title = fit(nodeTitle(node), b.w - 70, 11.5, true);
@@ -305,8 +312,8 @@ export function toSvg(doc: DiagramDoc): SvgExport {
           text({ x: b.x + 39, y: b.y + 34, text: fit(subtitle, b.w - 60, 9, false), size: 9, color: INK.sub }),
         );
       }
-      if (risky.length > 0) {
-        body.push(`<circle cx="${round(b.x + b.w - 15)}" cy="${round(b.y + 15)}" r="3.4" fill="#d64545"/>`);
+      if (risk) {
+        body.push(`<circle cx="${round(b.x + b.w - 15)}" cy="${round(b.y + 15)}" r="3.4" fill="${risk.color}"/>`);
       }
 
       const meta = host
@@ -320,14 +327,14 @@ export function toSvg(doc: DiagramDoc): SvgExport {
       const overflow = open.length - shownPorts.length;
       let cursor = b.x + 11;
       const chipY = b.y + b.h - 26;
-      const chip = (label: string, hot: boolean) => {
+      const chip = (label: string, color?: string) => {
         const labelWidth = textWidth(label, 8.5, true);
         const w = labelWidth + 12;
         if (cursor + w > b.x + b.w - 10) return;
         body.push(
           rect(cursor, chipY, w, 17, {
-            fill: hot ? INK.badgeRiskFill : INK.badgeFill,
-            stroke: hot ? '#f3c9c9' : '#dde5ee',
+            fill: color ? hexToRgba(color, 0.16) : INK.badgeFill,
+            stroke: color ? hexToRgba(color, 0.45) : '#dde5ee',
             rx: 5,
           }),
         );
@@ -337,17 +344,16 @@ export function toSvg(doc: DiagramDoc): SvgExport {
             y: chipY + 12,
             text: label,
             size: 8.5,
-            color: hot ? INK.badgeRiskText : INK.badgeText,
+            color: color ?? INK.badgeText,
             mono: true,
           }),
         );
         cursor += w + 6;
       };
       for (const port of shownPorts) {
-        const riskyPort = riskyPorts(host!).some((item) => item.port === port.port);
-        chip(`${port.port}${port.service ? ` ${port.service}` : ''}`, riskyPort);
+        chip(`${port.port}${port.service ? ` ${port.service}` : ''}`, levelForPort(port.port, riskPolicy)?.color);
       }
-      if (overflow > 0) chip(`+${overflow}`, false);
+      if (overflow > 0) chip(`+${overflow}`, undefined);
       continue;
     }
 

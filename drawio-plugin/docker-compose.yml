@@ -1,0 +1,31 @@
+# draw.io + the NMAP import plugin (see README.md in this folder).
+#
+#   docker compose up -d
+#   open http://localhost:8088/?offline=1
+#
+# The read-only mounts are all the wiring the plugin needs: the editor calls
+# js/PostConfig.js once its own scripts are loaded, and that file loads
+# plugins/nmap2drawio.js, which registers itself with Draw.loadPlugin().
+# samples/lab-scan.xml is the demo scan behind "Load sample scan".
+services:
+  drawio:
+    image: jgraph/drawio:${DRAWIO_VERSION:-latest}
+    # Rename it to run a second copy (the packaged release, for example) beside
+    # this one: DRAWIO_CONTAINER=nmap2drawio-pkg DRAWIO_PORT=8089 docker compose up -d
+    container_name: ${DRAWIO_CONTAINER:-nmap2drawio}
+    restart: unless-stopped
+    ports:
+      # 8088 by default because the app's own docker-compose.yml already uses 8080.
+      # The container always listens on 8080 (and 8443 for the self-signed HTTPS
+      # listener, which is left unpublished on purpose).
+      - "${DRAWIO_PORT:-8088}:8080"
+    volumes:
+      - ./plugins/nmap2drawio.js:/usr/local/tomcat/webapps/draw/plugins/nmap2drawio.js:ro
+      - ./samples/lab-scan.xml:/usr/local/tomcat/webapps/draw/plugins/samples/lab-scan.xml:ro
+      - ./webapp/js/PostConfig.js:/usr/local/tomcat/webapps/draw/js/PostConfig.js:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s

@@ -1,13 +1,18 @@
 import { isLayerVisible, layerMap, nodeTitle, edgeLine, edgePath, type DiagramDoc, type DiagramNode } from '../doc/types';
 import { absolutePosition, measureSection } from '../doc/measure';
 import { iconEmoji } from '../icons/registry';
-import { portSummaryOr, riskyPorts } from '../model/types';
+import { portSummaryOr } from '../model/types';
+import { nodeRisk, type RiskPolicy } from '../doc/risk';
 import { HOP_H, HOP_W, HOST_H, HOST_W, NOTE_H, NOTE_W, ORIGIN_H, ORIGIN_W } from '../graph/layout';
 
 const esc = (value: string) =>
   value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 const cellId = (id: string) => `c_${id.replace(/[^0-9a-zA-Z]+/g, '_')}`;
+
+/** A hand-picked accent replaces the style's own stroke colour. */
+const withAccent = (style: string, accent?: string) =>
+  accent ? style.replace(/strokeColor=[^;]*;/, `strokeColor=${accent};`) : style;
 
 const SECTION_STYLE =
   'rounded=0;html=1;dashed=1;dashPattern=6 6;fillColor=#f6f8fb;strokeColor=#b6c1d1;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontColor=#5a6a7d;fontStyle=1;fontSize=12;';
@@ -22,6 +27,13 @@ const ORIGIN_STYLE =
 
 function vertex(id: string, value: string, style: string, x: number, y: number, w: number, h: number) {
   return `        <mxCell id="${id}" value="${esc(value)}" style="${style}" vertex="1" parent="1"><mxGeometry x="${Math.round(
+    x,
+  )}" y="${Math.round(y)}" width="${Math.round(w)}" height="${Math.round(h)}" as="geometry"/></mxCell>`;
+}
+
+/** Child vertex: geometry is relative to the parent cell's origin. */
+function vertexChild(id: string, parent: string, style: string, x: number, y: number, w: number, h: number) {
+  return `        <mxCell id="${id}" value="" style="${style}" vertex="1" parent="${parent}"><mxGeometry x="${Math.round(
     x,
   )}" y="${Math.round(y)}" width="${Math.round(w)}" height="${Math.round(h)}" as="geometry"/></mxCell>`;
 }
@@ -46,18 +58,19 @@ const DASH_STYLE: Record<string, string> = {
   dotted: 'dashed=1;dashPattern=1.5 4;',
 };
 
-function hostLabel(node: DiagramNode): string {
+function hostLabel(node: DiagramNode, riskPolicy: RiskPolicy): string {
   const icon = iconEmoji(node.icon);
   const lines = [`<b>${esc(icon)} ${esc(nodeTitle(node))}</b>`];
   if (node.subtitle) lines.push(`<font color="#5a6a7d">${esc(node.subtitle)}</font>`);
-  const risky = node.host ? riskyPorts(node.host).length > 0 : false;
+  const risk = nodeRisk(node.host, riskPolicy);
   const ports = node.host ? portSummaryOr(node.host, 'discovered, no port scan', 5) : '';
-  if (ports && ports !== 'no open ports') lines.push(`<font color="${risky ? '#b91c1c' : '#2563eb'}">${esc(ports)}</font>`);
-  else if (node.host) lines.push('<font color="#8b97a8">no open ports</font>');
+  if (ports && ports !== 'no open ports') {
+    lines.push(`<font color="${risk?.color ?? '#2563eb'}">${esc(ports)}</font>`);
+  } else if (node.host) lines.push('<font color="#8b97a8">no open ports</font>');
   return lines.join('<br>');
 }
 
-export function toDrawio(doc: DiagramDoc): string {
+export function toDrawio(doc: DiagramDoc, riskPolicy: RiskPolicy): string {
   const layers = layerMap(doc.layers);
   const byId = new Map(doc.nodes.map((node) => [node.id, node]));
   const visible = doc.nodes.filter((node) => isLayerVisible(layers, node.layerId, doc.focusedLayerId));
@@ -76,7 +89,7 @@ export function toDrawio(doc: DiagramDoc): string {
       vertex(
         cellId(section.id),
         `<b>${esc(iconEmoji(section.icon))} ${esc(nodeTitle(section))}</b>`,
-        SECTION_STYLE,
+        withAccent(SECTION_STYLE, section.accent),
         pos.x,
         pos.y,
         w,
@@ -89,15 +102,28 @@ export function toDrawio(doc: DiagramDoc): string {
     if (node.kind === 'section') continue;
     const pos = absolutePosition(node, byId);
     if (node.kind === 'host') {
-      const risky = node.host ? riskyPorts(node.host).length > 0 : false;
-      const style = risky
-        ? `${HOST_STYLE}strokeColor=${node.accent ?? '#d64545'};strokeWidth=2;`
-        : node.accent
-          ? `${HOST_STYLE}strokeColor=${node.accent};`
-          : HOST_STYLE;
+      const risk = nodeRisk(node.host, riskPolicy);
+      const base = withAccent(HOST_STYLE, node.accent);
+      // The level colour outranks a hand-picked accent, matching the canvas.
+      const style = risk ? `${withAccent(base, risk.color)}strokeWidth=2;` : base;
       maxX = Math.max(maxX, pos.x + HOST_W);
       maxY = Math.max(maxY, pos.y + HOST_H);
-      cells.push(vertex(cellId(node.id), hostLabel(node), style, pos.x, pos.y, HOST_W, HOST_H));
+      cells.push(vertex(cellId(node.id), hostLabel(node, riskPolicy), style, pos.x, pos.y, HOST_W, HOST_H));
+      // The risk stroke outranks the accent, so keep the accent visible as an inset stripe.
+      if (risk && node.accent) {
+        const inset = Math.round(HOST_H * 0.18);
+        cells.push(
+          vertexChild(
+            `${cellId(node.id)}_accent`,
+            cellId(node.id),
+            `rounded=1;html=1;fillColor=${node.accent};strokeColor=none;`,
+            3,
+            inset,
+            4,
+            HOST_H - inset * 2,
+          ),
+        );
+      }
     } else if (node.kind === 'note') {
       const w = node.size?.w ?? NOTE_W;
       const h = node.size?.h ?? NOTE_H;
@@ -109,7 +135,7 @@ export function toDrawio(doc: DiagramDoc): string {
           `<b>${esc(iconEmoji(node.icon))} ${esc(nodeTitle(node))}</b><br><font color="#5b5a48">${esc(
             node.notes ?? '',
           )}</font>`,
-          NOTE_STYLE,
+          withAccent(NOTE_STYLE, node.accent),
           pos.x,
           pos.y,
           w,
@@ -123,7 +149,7 @@ export function toDrawio(doc: DiagramDoc): string {
         vertex(
           cellId(node.id),
           `<b>hop ${node.depth ?? 1}</b><br>${esc(nodeTitle(node))}`,
-          HOP_STYLE,
+          withAccent(HOP_STYLE, node.accent),
           pos.x,
           pos.y,
           HOP_W,
@@ -139,7 +165,7 @@ export function toDrawio(doc: DiagramDoc): string {
           `<b>${esc(nodeTitle(node).toUpperCase())}</b><br><font color="#9fb3c8">${esc(
             node.address ?? node.notes ?? '',
           )}</font>`,
-          ORIGIN_STYLE,
+          withAccent(ORIGIN_STYLE, node.accent),
           pos.x,
           pos.y,
           ORIGIN_W,

@@ -1,4 +1,5 @@
 import type { DiagramDoc } from '../doc/types';
+import type { RiskPolicy } from '../doc/risk';
 
 export type AuthFeatures = {
   authEnabled: boolean;
@@ -6,6 +7,8 @@ export type AuthFeatures = {
   guestLoginEnabled: boolean;
   guestTtlHours: number;
   maxProjectBytes: number;
+  /** Instance-wide risk levels from the server, when it was configured with them. */
+  risk?: RiskPolicy | null;
 };
 
 export type AccountUser = {

@@ -1,14 +1,20 @@
 name: Portable bundle release
 
+# Publishes three separate downloads on the rolling `portable-latest` release:
+#   app.cjs (+ app.cjs.sha256)              the whole app in one file, run with `node app.cjs`
+#   nmap2flowchart-portable-<platform>.zip  signed node + app.cjs + launcher, for machines without Node.js
+#   nmap2drawio-plugin.zip                  the standalone draw.io import plugin
+# Every run rebuilds all three so the release never mixes a fresh app.cjs with stale zips.
+
 on:
   push:
     branches: [main, master]
   workflow_dispatch:
     inputs:
       portable_folders:
-        description: 'Publish nmap2flowchart-portable-*.zip (bundled signed node + app.cjs + launcher; downloads ~215 MB of Node.js distributions)'
+        description: 'Also rebuild the portable zips (downloads ~215 MB of Node.js distributions)'
         type: boolean
-        default: false
+        default: true
 
 permissions:
   contents: write
@@ -47,25 +53,53 @@ jobs:
       - name: Test the API and the embedded static handler
         run: npm run test:api
 
+      - name: Check the draw.io plugin
+        working-directory: .
+        run: |
+          node drawio-plugin/check-plugin.mjs
+          node --check drawio-plugin/plugins/nmap2drawio.js
+          node --check drawio-plugin/webapp/js/PostConfig.js
+
       - name: Build app.cjs
         run: npm run standalone:bundle
 
       - name: Build portable folders
-        if: github.event_name == 'workflow_dispatch' && inputs.portable_folders
+        if: github.event_name == 'push' || inputs.portable_folders
         run: npm run standalone:portable -- --skip-frontend
 
       - name: Assemble release assets
         run: |
           set -euo pipefail
-          mkdir -p ../release-assets
-          cp ../release/app.cjs ../release/app.cjs.sha256 ../release-assets/
+          assets=../release-assets
+          mkdir -p "$assets"
+
+          # 1. The single file.
+          cp ../release/app.cjs ../release/app.cjs.sha256 "$assets/"
+
+          # 2. One zip per platform, with the folder at the root of the archive.
           for platform in win-x64 linux-x64; do
             folder="../release/nmap2flowchart-portable-$platform"
+            archive="$assets/nmap2flowchart-portable-$platform.zip"
             if [ -d "$folder" ]; then
-              (cd ../release && zip -q -r "../release-assets/nmap2flowchart-portable-$platform.zip" "nmap2flowchart-portable-$platform")
+              rm -f "$archive"
+              (cd ../release && zip -q -r "$archive" "nmap2flowchart-portable-$platform")
             fi
           done
-          ls -lh ../release-assets
+
+          # 3. The draw.io plugin, packaged from the manifest the local build reads too.
+          #    The manifest may be checked out with CRLF on Windows, so strip CR.
+          plugin="$assets/nmap2drawio-plugin"
+          rm -rf "$plugin" "$assets/nmap2drawio-plugin.zip"
+          mkdir -p "$plugin"
+          while IFS= read -r entry; do
+            entry="${entry%$'\r'}"
+            case "$entry" in ''|'#'*) continue ;; esac
+            cp -r "../drawio-plugin/$entry" "$plugin/"
+          done < ../drawio-plugin/package-files.txt
+          (cd "$assets" && zip -q -r nmap2drawio-plugin.zip nmap2drawio-plugin)
+          rm -rf "$plugin"
+
+          ls -lh "$assets"
 
       - name: Write release notes
         env:
@@ -78,7 +112,15 @@ jobs:
           One file, rebuilt on every push to the default branch: `app.cjs` holds the compiled
           editor **and** the optional accounts API, so nothing else is downloaded at runtime.
 
-          ## Run it
+          ## Downloads
+
+          | Asset | What it is |
+          | --- | --- |
+          | `app.cjs` (+ `app.cjs.sha256`) | The whole app in a single file. Needs Node.js 24 or newer. |
+          | `nmap2flowchart-portable-win-x64.zip` / `nmap2flowchart-portable-linux-x64.zip` | The same app with an unmodified, signed `node` runtime and a `start.cmd` / `start.sh` launcher — for machines without Node.js, including Windows Sandbox and Windows 11 with Smart App Control. |
+          | `nmap2drawio-plugin.zip` | The standalone draw.io import plugin: drop an `nmap -oX` scan straight onto a draw.io layer. No app install needed. |
+
+          ## Run the app
 
           ```bash
           node app.cjs          # serves http://127.0.0.1:8080/ and opens your browser
@@ -90,18 +132,37 @@ jobs:
           `--no-open`, `--auth` (local accounts and project autosave in SQLite),
           `--data-dir <dir>`, `--help`.
 
+          Or unzip a portable folder and use its launcher:
+
+          ```powershell
+          .\nmap2flowchart-portable-win-x64\start.cmd     # same flags as app.cjs
+          ```
+
+          ```bash
+          ./nmap2flowchart-portable-linux-x64/start.sh
+          ```
+
+          ## Use the draw.io plugin
+
+          Unzip it and either run the bundled editor, or add it to a draw.io you already have:
+
+          ```bash
+          cd nmap2drawio-plugin
+          docker compose up -d                      # http://localhost:8088/?offline=1
+          ```
+
+          ```powershell
+          .\install-plugin.ps1 -Container <container>   # your own draw.io, then hard-reload the editor
+          ```
+
+          In the editor: **File → NMAP: import scan…**, then pick a file, paste XML, or press
+          **Load sample scan**. The scan lands on its own layer as one undo step.
+
           ## Verify
 
           ```bash
           sha256sum -c app.cjs.sha256      # Windows: certutil -hashfile app.cjs SHA256
           ```
-
-          ## No Node.js on the target machine?
-
-          `node app.cjs` needs a runtime. For a machine without Node.js — including Windows
-          Sandbox — download `nmap2flowchart-portable-<platform>.zip` when it is attached below: it
-          ships an unmodified, signed `node.exe` plus `app.cjs` and a `start.cmd` / `start.sh`,
-          which Windows Smart App Control accepts where the single-file executable does not.
 
           ---
 
@@ -133,3 +194,24 @@ jobs:
           fi
           gh release upload "$RELEASE_TAG" --repo "$repo" ../release-assets/* --clobber
           gh release view "$RELEASE_TAG" --repo "$repo" --json url,assets --jq '{url, assets: [.assets[].name]}'
+
+      - name: Check the release carries every download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          published=$(gh release view "$RELEASE_TAG" --repo "$repo" --json assets --jq '.assets[].name')
+          echo "$published"
+          required="app.cjs app.cjs.sha256 nmap2drawio-plugin.zip"
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ inputs.portable_folders }}" = "true" ]; then
+            required="$required nmap2flowchart-portable-win-x64.zip nmap2flowchart-portable-linux-x64.zip"
+          fi
+          missing=0
+          for asset in $required; do
+            if ! printf '%s\n' "$published" | grep -qx "$asset"; then
+              echo "::error::release asset $asset is missing"
+              missing=1
+            fi
+          done
+          exit $missing

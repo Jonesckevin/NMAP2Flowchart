@@ -75,11 +75,29 @@ import {
   type StackMode,
 } from './doc/operations';
 import { parseNmapXml } from './nmap/parseNmapXml';
-import { openPorts, riskyPorts, discoveryOnly, type NmapScan } from './model/types';
+import { openPorts, discoveryOnly, type NmapScan } from './model/types';
+import {
+  RISK_SCOPE_LABEL,
+  nodeRisk,
+  normalizeDiagramRisk,
+  normalizeRiskPolicy,
+  resolveRiskPolicy,
+  riskStats,
+  type RiskSummary,
+} from './doc/risk';
+import { RiskLevelsDialog } from './components/RiskLevelsDialog';
+import { RiskSummaryDialog } from './components/RiskSummaryDialog';
 import { toMermaid } from './export/mermaid';
 import { toDrawio } from './export/drawio';
 import { toSvg } from './export/svg';
 import { rasterize, svgToPdf, toBlob } from './export/raster';
+import {
+  riskReportRows,
+  toRiskCsv,
+  toRiskJson,
+  type RiskReportMeta,
+  type RiskReportScope,
+} from './export/riskReport';
 import { SAMPLE_FILE_NAME, SAMPLE_SCAN_XML } from './data/sampleScan';
 
 const STORAGE_KEY = 'nmap2flowchart.diagram.v2';
@@ -211,6 +229,16 @@ function Canvas() {
   const doc = history.doc;
   const account = useAccount();
 
+  // Level colours come from the diagram first, then the account, then the
+  // server-configured default, then the built-in three tiers.
+  const diagramRisk = useMemo(() => normalizeDiagramRisk(doc?.risk), [doc?.risk]);
+  const accountRisk = useMemo(() => normalizeRiskPolicy(account.riskPolicy), [account.riskPolicy]);
+  const serverRisk = useMemo(() => normalizeRiskPolicy(account.features.risk), [account.features.risk]);
+  const { policy: riskPolicy, scope: riskScope } = useMemo(
+    () => resolveRiskPolicy({ diagram: diagramRisk, account: accountRisk, server: serverRisk }),
+    [diagramRisk, accountRisk, serverRisk],
+  );
+
   const [selection, setSelection] = useState<{ nodes: string[]; edges: string[] }>({ nodes: [], edges: [] });
   const [query, setQuery] = useState('');
   const [activeLayerId, setActiveLayerId] = useState(MAIN_LAYER);
@@ -224,6 +252,8 @@ function Canvas() {
   const [importMenu, setImportMenu] = useState(false);
   const [exportMenu, setExportMenu] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [riskOpen, setRiskOpen] = useState(false);
+  const [riskSummaryOpen, setRiskSummaryOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [dropLayerId, setDropLayerId] = useState<string | null>(null);
   const [dropSectionId, setDropSectionId] = useState<string | null>(null);
@@ -1173,52 +1203,78 @@ function Canvas() {
 
   const exportMermaid = useCallback(() => {
     if (!doc) return;
-    download(`${baseName(doc.fileName)}.mermaid.md`, `\`\`\`mermaid\n${toMermaid(doc)}\`\`\`\n`, 'text/markdown');
+    download(`${baseName(doc.fileName)}.mermaid.md`, `\`\`\`mermaid\n${toMermaid(doc, riskPolicy)}\`\`\`\n`, 'text/markdown');
     notify('Mermaid flowchart exported');
-  }, [doc, notify]);
+  }, [doc, notify, riskPolicy]);
 
   const exportDrawio = useCallback(() => {
     if (!doc) return;
-    download(`${baseName(doc.fileName)}.drawio`, toDrawio(doc), 'application/xml');
+    download(`${baseName(doc.fileName)}.drawio`, toDrawio(doc, riskPolicy), 'application/xml');
     notify('draw.io diagram exported');
-  }, [doc, notify]);
+  }, [doc, notify, riskPolicy]);
 
   const exportSvgFile = useCallback(() => {
     if (!doc) return;
-    const { svg } = toSvg(doc);
+    const { svg } = toSvg(doc, riskPolicy);
     download(`${baseName(doc.fileName)}.svg`, svg, 'image/svg+xml');
     notify('Vector SVG exported');
-  }, [doc, notify]);
+  }, [doc, notify, riskPolicy]);
 
   const exportPngFile = useCallback(async () => {
     if (!doc) return;
     try {
-      const { svg, width, height } = toSvg(doc);
+      const { svg, width, height } = toSvg(doc, riskPolicy);
       const raster = await rasterize(svg, width, height, EXPORT_DPI);
       downloadBlob(`${baseName(doc.fileName)}.png`, await toBlob(raster.canvas, 'image/png'));
       notify(`PNG exported · ${raster.width}×${raster.height} px (${Math.round(raster.scale * 96)} dpi)`);
     } catch (error) {
       notify(`PNG export failed: ${(error as Error).message}`);
     }
-  }, [doc, notify]);
+  }, [doc, notify, riskPolicy]);
 
   const exportPdfFile = useCallback(async () => {
     if (!doc) return;
     try {
-      const { svg, width, height } = toSvg(doc);
+      const { svg, width, height } = toSvg(doc, riskPolicy);
       const pdf = await svgToPdf(svg, width, height, EXPORT_DPI);
       downloadBlob(`${baseName(doc.fileName)}.pdf`, pdf);
       notify(`PDF exported · ${Math.round((width * 72) / 96)}×${Math.round((height * 72) / 96)} pt page`);
     } catch (error) {
       notify(`PDF export failed: ${(error as Error).message}`);
     }
-  }, [doc, notify]);
+  }, [doc, notify, riskPolicy]);
 
   const saveWorkspace = useCallback(() => {
     if (!doc) return;
     download(`${baseName(doc.fileName)}.nmap2flowchart.json`, JSON.stringify({ version: 2, doc }, null, 2), 'application/json');
     notify('Diagram saved');
   }, [doc, notify]);
+
+  const exportRiskReport = useCallback(
+    (format: 'csv' | 'json', summary: RiskSummary, scope: RiskReportScope, scopeNote: string) => {
+      if (!doc) return;
+      const meta: RiskReportMeta = {
+        diagram: doc.fileName,
+        scope,
+        scopeLabel: scopeNote,
+        policyScope: RISK_SCOPE_LABEL[riskScope],
+        generated: new Date().toISOString(),
+      };
+      const name = `${baseName(doc.fileName)}.risk-${scope === 'view' ? 'view' : 'diagram'}.${format}`;
+      if (format === 'json') {
+        download(name, toRiskJson(summary, meta), 'application/json');
+      } else {
+        download(name, toRiskCsv(summary, meta), 'text/csv');
+      }
+      const rows = riskReportRows(summary).length;
+      notify(
+        rows === 0
+          ? 'Risk report exported with no flagged rows'
+          : `Risk report exported · ${rows} flagged port${rows === 1 ? '' : 's'}`,
+      );
+    },
+    [doc, notify, riskScope],
+  );
 
   const openWorkspace = useCallback(() => {
     importMode.current = 'replace';
@@ -1349,14 +1405,19 @@ function Canvas() {
   );
 
   const counts = useMemo(() => (doc ? countNodesByLayer(doc) : new Map<string, number>()), [doc]);
+
   const stats = useMemo(() => {
     if (!doc) return null;
     const hosts = doc.nodes.filter((node) => node.host);
+    const risk = riskStats(
+      hosts.map((node) => node.host!),
+      riskPolicy,
+    );
     return {
       hosts: hosts.length,
       open: hosts.reduce((total, node) => total + openPorts(node.host!).length, 0),
       layers: doc.layers.length,
-      risky: hosts.reduce((total, node) => total + riskyPorts(node.host!).length, 0),
+      risk,
       subnets: new Set(doc.nodes.filter((node) => node.kind === 'section' && node.cidr).map((node) => node.cidr)).size,
       services: new Set(hosts.flatMap((node) => node.host!.ports.filter((port) => openPorts(node.host!).some((open) => open === port)).map((port) => port.service ?? port.product).filter(Boolean))).size,
       routes: doc.nodes.filter((node) => node.kind === 'hop').length,
@@ -1365,7 +1426,7 @@ function Canvas() {
         return !layer?.visible;
       }).length,
     };
-  }, [doc]);
+  }, [doc, riskPolicy]);
 
   const focusName = doc?.focusedLayerId ? layerMap(doc.layers).get(doc.focusedLayerId)?.name : null;
 
@@ -1393,6 +1454,7 @@ function Canvas() {
             selectedEdgeIds: selection.edges,
             query,
             onlyMatches,
+            riskPolicy,
             editingNoteId: editingNote,
             dropSectionId,
             onToggle: toggleSection,
@@ -1404,7 +1466,7 @@ function Canvas() {
             onDelete: handleDeleteNode,
           })
         : { nodes: [], edges: [] },
-    [doc, selection, query, editingNote, dropSectionId, toggleSection, resizeSection, tidySection, startNoteEdit, patchNoteText, handleDeleteNode],
+    [doc, selection, query, editingNote, dropSectionId, riskPolicy, toggleSection, resizeSection, tidySection, startNoteEdit, patchNoteText, handleDeleteNode],
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>([]);
@@ -1474,7 +1536,17 @@ function Canvas() {
               <Stat label="hosts" value={stats.hosts} />
               <Stat label="open ports" value={stats.open} />
               <Stat label="layers" value={stats.layers} />
-              {stats.risky > 0 && <Stat label="high risk" value={stats.risky} tone="danger" />}
+              {stats.risk.levels
+                .filter((entry) => entry.ports > 0)
+                .slice(0, 1)
+                .map((entry) => (
+                  <div key={entry.level.id} className="stat" title={`${entry.level.label} ports`}>
+                    <span className="stat__value" style={{ color: entry.level.color }}>
+                      {entry.ports}
+                    </span>
+                    <span className="stat__label">{entry.level.label.toLowerCase()}</span>
+                  </div>
+                ))}
             </>
           )}
           {doc && (
@@ -1482,9 +1554,26 @@ function Canvas() {
               type="button"
               className={`overview-button${overviewOpen ? ' is-on' : ''}`}
               aria-expanded={overviewOpen}
-              onClick={() => setOverviewOpen((open) => !open)}
+              onClick={() => {
+                setRiskSummaryOpen(false);
+                setOverviewOpen((open) => !open);
+              }}
             >
               Overview
+            </button>
+          )}
+          {doc && (
+            <button
+              type="button"
+              className={`overview-button${riskSummaryOpen ? ' is-on' : ''}`}
+              aria-expanded={riskSummaryOpen}
+              title="Risk summary: levels, ports and hosts, with JSON/CSV export"
+              onClick={() => {
+                setOverviewOpen(false);
+                setRiskSummaryOpen((open) => !open);
+              }}
+            >
+              Risk
             </button>
           )}
         </div>
@@ -1779,6 +1868,17 @@ function Canvas() {
                   >
                     Export draw.io
                   </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={!doc}
+                    onClick={() => {
+                      closeMenus();
+                      setRiskOpen(true);
+                    }}
+                  >
+                    Risk levels…
+                  </button>
                   <div className="menu__sep" />
                   <button
                     type="button"
@@ -1967,7 +2067,26 @@ function Canvas() {
                 <div><dt>Routes / hops</dt><dd>{stats.routes}</dd></div>
                 <div><dt>Services</dt><dd>{stats.services}</dd></div>
                 <div><dt>Open ports</dt><dd>{stats.open}</dd></div>
-                <div><dt>High risk</dt><dd>{stats.risky}</dd></div>
+                <div>
+                  <dt>Flagged hosts</dt>
+                  <dd>
+                    {stats.risk.hosts}
+                    {riskScope !== 'diagram' ? <em className="stat-hint"> · {RISK_SCOPE_LABEL[riskScope]}</em> : null}
+                  </dd>
+                </div>
+                {stats.risk.levels
+                  .filter((entry) => entry.ports > 0)
+                  .map((entry) => (
+                    <div key={entry.level.id}>
+                      <dt>
+                        <i className="risk-swatch" style={{ background: entry.level.color }} />
+                        {entry.level.label}
+                      </dt>
+                      <dd>
+                        {entry.hosts} hosts · {entry.ports} ports
+                      </dd>
+                    </div>
+                  ))}
                 <div><dt>Hidden nodes</dt><dd>{stats.hidden}</dd></div>
                 <div><dt>Layers</dt><dd>{stats.layers}</dd></div>
               </dl>
@@ -1980,7 +2099,17 @@ function Canvas() {
               <div><i className="legend-section" /> Section / subnet</div>
               <div><i className="legend-note" /> Note</div>
               <div><i className="legend-link" /> Link</div>
-              <div><i className="legend-risk" /> High-risk port</div>
+              {riskPolicy.levels
+                .filter((level) => level.enabled)
+                .map((level) => (
+                  <div key={level.id}>
+                    <i className="legend-risk" style={{ background: level.color }} />
+                    {level.label} port
+                  </div>
+                ))}
+              <button type="button" className="legend-edit" onClick={() => setRiskOpen(true)}>
+                Edit risk levels…
+              </button>
             </section>
           )}
           {doc && query.trim() && (
@@ -2087,7 +2216,12 @@ function Canvas() {
           )}
 
           {hoverCard && hoveredNode && (
-            <HoverCard node={hoveredNode} anchor={hoverCard.rect} childCount={hoveredChildren} />
+            <HoverCard
+          node={hoveredNode}
+          anchor={hoverCard.rect}
+          childCount={hoveredChildren}
+          risk={nodeRisk(hoveredNode.host, riskPolicy)}
+        />
           )}
 
           {linkSource && (
@@ -2212,6 +2346,7 @@ function Canvas() {
             />
             <Inspector
               doc={doc}
+              riskPolicy={riskPolicy}
               nodeIds={selection.nodes}
               edgeIds={selection.edges}
               onPatchNode={onPatchNode}
@@ -2350,6 +2485,35 @@ function Canvas() {
           loadDoc(project.doc, `“${project.name}” opened from your account`);
           setAccountOpen(false);
         }}
+      />
+
+      <RiskLevelsDialog
+        open={riskOpen}
+        onClose={() => setRiskOpen(false)}
+        doc={doc}
+        policy={riskPolicy}
+        scope={riskScope}
+        diagramPolicy={diagramRisk}
+        accountPolicy={accountRisk}
+        serverPolicy={serverRisk}
+        canUseAccount={Boolean(account.user)}
+        onSaveDiagram={(policy) =>
+          history.commit((current) => ({ ...current, risk: policy }))
+        }
+        onSaveAccount={(policy) => account.saveRiskPolicy(policy)}
+      />
+
+      <RiskSummaryDialog
+        open={riskSummaryOpen}
+        onClose={() => setRiskSummaryOpen(false)}
+        doc={doc}
+        policy={riskPolicy}
+        policyScope={riskScope}
+        onSelectNode={(nodeId) => {
+          setSelection({ nodes: [nodeId], edges: [] });
+          setRiskSummaryOpen(false);
+        }}
+        onExport={exportRiskReport}
       />
     </div>
   );

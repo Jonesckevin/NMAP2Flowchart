@@ -7,6 +7,7 @@ import test from 'node:test';
 import { clientIp } from './auth.mjs';
 import { createApi } from './app.mjs';
 import { loadConfig } from './config.mjs';
+import { sanitizeRiskPolicy } from './risk.mjs';
 import { openStore } from './store.mjs';
 
 const LOGGER = { info() {}, warn() {}, error() {} };
@@ -298,6 +299,122 @@ test('rejects malformed diagrams and missing payloads', async () => {
     assert.equal(noNodes.status, 400);
 
     assert.equal((await call(api.base, '/api/projects', { method: 'POST', token })).status, 400);
+  } finally {
+    await api.close();
+  }
+});
+
+test('serves the instance risk policy from the server configuration', async () => {
+  const configured = {
+    version: 1,
+    levels: [
+      { id: 'critical', label: ' Critical ', color: '#E5484D', ports: ' 445, 3389 ', enabled: true },
+      { id: 'low', label: '', color: 'not-a-colour', ports: '', enabled: false },
+      { id: 'medium', label: 'Medium', color: '#f08c2e', ports: '8000-8100' },
+    ],
+  };
+  const api = await startApi({ authEnabled: false, riskPolicy: loadConfig({}).riskPolicy });
+  const plain = await startApi({ authEnabled: false });
+  const withPolicy = await startApi({ authEnabled: false, riskPolicy: sanitizeRiskPolicy(configured) });
+  try {
+    assert.equal((await call(plain.base, '/api/config')).body.risk, null);
+    const served = (await call(withPolicy.base, '/api/config')).body.risk;
+    assert.equal(served.levels.length, 2, 'a level with neither a name nor ports is dropped');
+    assert.deepEqual(served.levels[0], {
+      id: 'critical',
+      label: 'Critical',
+      color: '#E5484D',
+      ports: '445, 3389',
+      enabled: true,
+    });
+    assert.equal(served.levels[1].enabled, true, 'enabled defaults to true');
+    assert.equal(api.config.riskPolicy, null, 'no env configuration means no server policy');
+  } finally {
+    await plain.close();
+    await withPolicy.close();
+    await api.close();
+  }
+});
+
+test('reads the instance risk policy from NMAP_RISK_LEVELS and NMAP_RISK_POLICY_FILE', () => {
+  const inline = loadConfig({ NMAP_RISK_LEVELS: '[{"label":"Critical","ports":"445","color":"#e5484d"}]' });
+  assert.equal(inline.riskPolicy.levels.length, 1);
+  assert.equal(inline.riskPolicy.levels[0].label, 'Critical');
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nmap2flowchart-risk-'));
+  const file = path.join(dir, 'risk.json');
+  fs.writeFileSync(file, JSON.stringify({ levels: [{ label: 'Medium', ports: '8000-8100' }] }));
+  try {
+    const fromFile = loadConfig({ NMAP_RISK_POLICY_FILE: file });
+    assert.equal(fromFile.riskPolicy.levels[0].ports, '8000-8100');
+
+    assert.equal(loadConfig({ NMAP_RISK_LEVELS: '{oops' }).riskPolicy, null, 'bad JSON is ignored');
+    assert.equal(loadConfig({ NMAP_RISK_POLICY_FILE: path.join(dir, 'missing.json') }).riskPolicy, null);
+    assert.equal(loadConfig({ NMAP_RISK_LEVELS: '{"nope":1}' }).riskPolicy, null);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('stores risk levels per account and clears them again', async () => {
+  const api = await startApi();
+  try {
+    const alice = await register(api.base, 'grace');
+    const bob = await register(api.base, 'heidi');
+
+    assert.equal((await call(api.base, '/api/preferences')).status, 401);
+    assert.deepEqual((await call(api.base, '/api/preferences', { token: alice.token })).body, { risk: null });
+
+    const policy = {
+      version: 1,
+      levels: [
+        { id: 'critical', label: 'Critical', color: '#e5484d', ports: '21, 23, 445', enabled: true },
+        { id: 'medium', label: 'Medium', color: '#f08c2e', ports: '8000-8100', enabled: true },
+      ],
+    };
+    const saved = await call(api.base, '/api/preferences', { method: 'PUT', token: alice.token, body: { risk: policy } });
+    assert.equal(saved.status, 200);
+    assert.deepEqual(saved.body.risk, policy);
+
+    assert.deepEqual((await call(api.base, '/api/preferences', { token: alice.token })).body.risk, policy);
+    assert.equal(
+      (await call(api.base, '/api/preferences', { token: bob.token })).body.risk,
+      null,
+      'levels are private to the account that saved them',
+    );
+
+    assert.equal(
+      (await call(api.base, '/api/preferences', { method: 'PUT', token: alice.token, body: {} })).status,
+      400,
+    );
+    assert.equal(
+      (await call(api.base, '/api/preferences', { method: 'PUT', token: alice.token, body: { risk: { levels: 'x' } } }))
+        .status,
+      400,
+    );
+    assert.equal((await call(api.base, '/api/preferences', { method: 'POST', token: alice.token })).status, 405);
+
+    const cleared = await call(api.base, '/api/preferences', {
+      method: 'PUT',
+      token: alice.token,
+      body: { risk: null },
+    });
+    assert.deepEqual(cleared.body, { risk: null });
+    assert.deepEqual((await call(api.base, '/api/preferences', { token: alice.token })).body, { risk: null });
+
+    assert.equal(
+      (await call(api.base, '/api/preferences', { token: (await register(api.base, 'ivan')).token })).status,
+      200,
+    );
+  } finally {
+    await api.close();
+  }
+});
+
+test('preferences stay unavailable when accounts are disabled', async () => {
+  const api = await startApi({ authEnabled: false });
+  try {
+    assert.equal((await call(api.base, '/api/preferences')).status, 404);
   } finally {
     await api.close();
   }

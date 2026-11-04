@@ -14,7 +14,8 @@ import {
   type DiagramNode,
   type EdgePath,
 } from '../doc/types';
-import { discoveryOnly, openPorts, riskyPorts, type NmapHost, type NmapMac, type NmapOsMatch, type NmapPort } from '../model/types';
+import { discoveryOnly, openPorts, type NmapHost, type NmapMac, type NmapOsMatch, type NmapPort } from '../model/types';
+import { hexToRgba, portsByLevel, type RiskPolicy } from '../doc/risk';
 import { IconPicker } from './IconPicker';
 
 const PATH_SAMPLES: Record<EdgePath, string> = {
@@ -33,6 +34,8 @@ const PATH_HINTS: Record<EdgePath, string> = {
 
 type InspectorProps = {
   doc: DiagramDoc;
+  /** Active risk policy; the diagram's own levels or the inherited ones. */
+  riskPolicy: RiskPolicy;
   nodeIds: string[];
   edgeIds: string[];
   onPatchNode: (id: string, patch: Partial<DiagramNode>) => void;
@@ -56,6 +59,9 @@ const KIND_LABEL: Record<DiagramNode['kind'], string> = {
   hop: 'route hop',
   origin: 'scan origin',
 };
+
+/** Human names for the accent swatches, aligned with LAYER_COLORS. */
+const ACCENT_NAMES = ['blue', 'green', 'orange', 'purple', 'pink', 'yellow', 'slate'];
 
 export function Inspector(props: InspectorProps) {
   const { doc, nodeIds, edgeIds, onClose } = props;
@@ -321,6 +327,7 @@ function PortsEditor({ ports, onChange }: { ports: NmapPort[]; onChange: (ports:
 
 function NodeDetails({
   doc,
+  riskPolicy,
   node,
   onPatchNode,
   onSetSection,
@@ -336,7 +343,7 @@ function NodeDetails({
   const path = flattenLayers(doc.layers);
   const sections = doc.nodes.filter((item) => item.kind === 'section' && item.id !== node.id);
   const open = openPorts(host);
-  const risky = riskyPorts(host);
+  const risks = portsByLevel(host, riskPolicy);
   const scripts = [...host.scripts, ...host.ports.flatMap((port) => port.scripts)];
   const patchHost = (patch: Partial<NmapHost>) => onPatchNode(node.id, { host: { ...host, ...patch } });
 
@@ -536,18 +543,27 @@ function NodeDetails({
               type="button"
               className={`swatch swatch--none${node.accent ? '' : ' is-active'}`}
               title="No accent"
+              aria-label="No accent"
+              aria-pressed={!node.accent}
               onClick={() => onPatchNode(node.id, { accent: undefined })}
             />
-            {LAYER_COLORS.map((color) => (
+            {LAYER_COLORS.map((color, index) => (
               <button
                 key={color}
                 type="button"
                 className={`swatch${node.accent === color ? ' is-active' : ''}`}
                 style={{ background: color }}
+                title={`${ACCENT_NAMES[index] ?? 'Accent'} accent`}
+                aria-label={`${ACCENT_NAMES[index] ?? color} accent`}
+                aria-pressed={node.accent === color}
                 onClick={() => onPatchNode(node.id, { accent: color })}
               />
             ))}
           </div>
+          <p className="inspector__note">
+            The accent colours the card edge. When a risk level applies, the edge keeps the risk colour
+            and the accent becomes a stripe; selecting a card turns the edge green until you deselect.
+          </p>
         </Field>
 
         <Field label={node.kind === 'note' ? 'Note' : 'Notes'}>
@@ -562,12 +578,20 @@ function NodeDetails({
 
         {node.kind === 'host' && (
           <>
-            {risky.length > 0 && (
-              <p className="inspector__warning">
-                {risky.length} high-risk {risky.length === 1 ? 'port' : 'ports'} exposed:{' '}
-                {risky.map((port) => port.port).join(', ')}
+            {risks.map((entry) => (
+              <p
+                key={entry.level.id}
+                className="inspector__warning"
+                style={{
+                  borderColor: hexToRgba(entry.level.color, 0.45),
+                  background: hexToRgba(entry.level.color, 0.1),
+                  color: entry.level.color,
+                }}
+              >
+                {entry.ports.length} {entry.level.label.toLowerCase()}{' '}
+                {entry.ports.length === 1 ? 'port' : 'ports'} exposed: {entry.ports.join(', ')}
               </p>
-            )}
+            ))}
 
             <h3 className="inspector__section">
               Scan data{' '}

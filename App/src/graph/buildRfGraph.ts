@@ -1,5 +1,6 @@
 import { MarkerType, type Edge, type Node, type XYPosition } from '@xyflow/react';
-import { riskyPorts, type NmapHost } from '../model/types';
+import { type NmapHost } from '../model/types';
+import { hostMatchesRiskFilter, nodeRisk, type NodeRisk, type RiskPolicy } from '../doc/risk';
 import {
   edgeLine,
   edgePath,
@@ -17,6 +18,8 @@ import { measureSection, sectionMinSize } from '../doc/measure';
 export type AppNodeData = {
   node?: DiagramNode;
   host?: NmapHost;
+  /** Resolved risk level for this host, from the active policy. */
+  risk?: NodeRisk | null;
   childCount?: number;
   dimmed?: boolean;
   editing?: boolean;
@@ -40,6 +43,7 @@ export type BuildOptions = {
   selectedEdgeIds: string[];
   query: string;
   onlyMatches?: boolean;
+  riskPolicy: RiskPolicy;
   editingNoteId?: string | null;
   dropSectionId?: string | null;
   onToggle: (id: string) => void;
@@ -83,7 +87,7 @@ function hostMatches(host: NmapHost, needle: string): boolean {
   return haystack.includes(needle);
 }
 
-function matchesFilter(node: DiagramNode, rawQuery: string): boolean {
+function matchesFilter(node: DiagramNode, rawQuery: string, riskPolicy: RiskPolicy): boolean {
   const query = rawQuery.trim().toLowerCase();
   if (!query) return true;
   const filters = query.split(/\s+/).filter(Boolean);
@@ -109,9 +113,10 @@ function matchesFilter(node: DiagramNode, rawQuery: string): boolean {
       ) ?? false;
     }
     if (prefix === 'risk') {
-      return normalized === 'high'
-        ? Boolean(node.host && riskyPorts(node.host).length)
-        : Boolean(node.host);
+      // "risk:any" (or a bare "risk:") flags every host with a matched port;
+      // otherwise the value is matched against the level name or id. "high"
+      // still means the highest-priority level, as before level names existed.
+      return hostMatchesRiskFilter(node.host, riskPolicy, normalized);
     }
     return nodeMatches(node, filter);
   });
@@ -134,6 +139,7 @@ export function buildRfGraph(
     selectedEdgeIds,
     query,
     onlyMatches,
+    riskPolicy,
     editingNoteId,
     dropSectionId,
     onToggle,
@@ -195,7 +201,7 @@ export function buildRfGraph(
   for (const node of ordered) {
     if (!visible.has(node.id)) continue;
     const children = childrenOf.get(node.id) ?? [];
-    const matches = !needle || matchesFilter(node, query);
+    const matches = !needle || matchesFilter(node, query, riskPolicy);
     const dimmed = needle.length > 0 && !matches;
     if (onlyMatches && needle && !matches) continue;
 
@@ -234,6 +240,7 @@ export function buildRfGraph(
       data: {
         node,
         host: node.host,
+        risk: node.kind === 'host' ? nodeRisk(node.host, riskPolicy) : null,
         dimmed,
         editing: editingNoteId === node.id,
         onToggle,

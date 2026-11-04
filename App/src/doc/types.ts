@@ -1,4 +1,5 @@
 import type { NmapHost } from '../model/types';
+import type { RiskPolicy } from './risk';
 
 export type Layer = {
   id: string;
@@ -75,6 +76,12 @@ export type DiagramDoc = {
   nodes: DiagramNode[];
   edges: DiagramEdge[];
   focusedLayerId: string | null;
+  /**
+   * Risk levels for this diagram. Absent or `null` inherits the account policy,
+   * then the server policy, then the built-in default — so saved workspaces from
+   * before risk levels existed keep working unchanged.
+   */
+  risk?: RiskPolicy | null;
 };
 
 export const MAIN_LAYER = 'layer:main';

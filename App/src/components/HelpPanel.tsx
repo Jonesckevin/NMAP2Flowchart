@@ -50,7 +50,11 @@ const TIP_GROUPS: { title: string; tips: Tip[] }[] = [
       { keys: 'Select → Connect', what: 'Click a node, hit Connect, then click the second node. Esc cancels.' },
       {
         keys: 'Inspector → Accent',
-        what: 'Give any card, note or frame its own border colour. Selecting it turns the border green, and risk / down states keep their own tint.',
+        what: 'Give any card, note or frame its own colour: it becomes the border. Selecting a card turns the border green while it is selected, and a risk level colour always outranks the accent — then the accent shows as a stripe on the left edge instead.',
+      },
+      {
+        keys: 'Risk',
+        what: 'Opens the risk summary: every level, the ports that raised it and the hosts listening on them. Switch between the current view and the whole diagram, filter the tree, then export JSON or CSV for a report.',
       },
       {
         keys: 'Drag a node by its dot',
@@ -94,6 +98,14 @@ const TIP_GROUPS: { title: string; tips: Tip[] }[] = [
     tips: [
       { keys: 'Drag, middle-drag', what: 'Pan with the left or middle mouse button. Scroll to pan, Ctrl+scroll to zoom, Fit to reset.' },
       { keys: 'Delete / Ctrl+Z', what: 'Remove the selection (several nodes at once) / undo. Ctrl+Shift+Z redoes.' },
+      {
+        keys: '⋯ → Risk levels',
+        what: 'Decide which ports count as risky: per level a name, a colour and a list of ports or ranges (8000-8100). The list is the hierarchy — the top level wins, so a red port outranks an orange one. Save to this diagram, to your account, or leave the diagram inheriting the server default.',
+      },
+      {
+        keys: 'Filter “risk:…”',
+        what: 'risk:any (or risk:) flags every host with a matched port, risk:high the ones at the top level, and risk:critical / risk:medium / risk:low a level by name.',
+      },
       {
         keys: '⋯ → Export SVG / PNG / PDF',
         what: 'Print-ready output on a white page: vector SVG, 300 dpi PNG, or one PDF page sized to the diagram for plotter prints.',

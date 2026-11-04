@@ -298,7 +298,7 @@ body {
 .legend-section { border-radius: 2px !important; }
 .legend-note { background: #facc15 !important; }
 .legend-link { background: #2fd6a5 !important; }
-.legend-risk { background: #ff6b5b !important; }
+.legend-risk { background: #ff6b5b; }
 .legend-toggle,
 .only-matches {
   position: absolute;
@@ -649,6 +649,7 @@ body {
 .host-node {
   --edge-color: var(--node-accent, #24303f);
   --edge-mix: 72%;
+  position: relative;
   width: 100%;
   height: 100%;
   display: flex;
@@ -672,9 +673,26 @@ body {
 }
 
 .host-node.is-risky {
-  --edge-color: var(--node-accent, var(--danger));
+  /* The level colour wins over a hand-picked accent: a red host must read red.
+     The accent then shows as the stripe below, and on the port badges. */
+  --edge-color: var(--risk-color, var(--danger));
   --edge-mix: 36%;
   background: linear-gradient(180deg, #181a20 0%, #11151b 100%);
+}
+
+/* Whenever the edge stops showing the accent (a risk level owns the border, or a
+   selection turns it green) draw the accent as a stripe, so the swatch always has
+   a visible effect. Sizes are percentages so pills and cards both look right. */
+:is(.host-node, .section-node, .hop-node, .origin-node)[data-accent]:is(.is-risky, .is-selected)::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 18%;
+  bottom: 18%;
+  width: 4px;
+  border-radius: 3px;
+  background: var(--node-accent);
+  pointer-events: none;
 }
 
 .host-node.is-down {
@@ -775,13 +793,14 @@ body {
 }
 
 .badge--risk {
-  border-color: #4a2a2f;
-  background: #1d1216;
-  color: #ff8d8d;
+  border-color: var(--risk-color, #4a2a2f);
+  background: var(--risk-soft, #1d1216);
+  color: var(--risk-color, #ff8d8d);
 }
 
 .badge--risk em {
-  color: #a15d5d;
+  color: inherit;
+  opacity: 0.72;
 }
 
 .badge--more {
@@ -828,6 +847,7 @@ body {
 
 .section-node {
   --node-edge: var(--node-accent, #3f5168);
+  position: relative;
   width: 100%;
   height: 100%;
   display: flex;
@@ -932,6 +952,7 @@ body {
 }
 
 .hop-node {
+  position: relative;
   width: 100%;
   height: 100%;
   display: flex;
@@ -996,6 +1017,7 @@ body {
 }
 
 .origin-node {
+  position: relative;
   width: 100%;
   height: 100%;
   display: flex;
@@ -3682,4 +3704,396 @@ select.input {
     flex-wrap: wrap;
     justify-content: flex-end;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Risk levels
+   --------------------------------------------------------------------------- */
+.dialog__note {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.dialog__note--small {
+  margin-top: 6px;
+  font-size: 11px;
+}
+
+.dialog__error {
+  margin: 10px 0 0;
+  color: #ff8a8a;
+  font-size: 11.5px;
+}
+
+.risk-dialog {
+  width: min(680px, calc(100vw - 32px));
+}
+
+.risk-scope {
+  display: flex;
+  gap: 4px;
+  margin: 14px 0 0;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #0b1118;
+}
+
+.risk-scope__option {
+  flex: 1;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.risk-scope__option:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.risk-scope__option.is-on {
+  background: #16202c;
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+
+.risk-scope__option:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.risk-levels {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.risk-level {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--level-color, #e5484d);
+  border-radius: 10px;
+  background: #0d141c;
+}
+
+.risk-level.is-off {
+  opacity: 0.55;
+}
+
+.risk-level__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.risk-level__rank {
+  width: 16px;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.risk-level__move {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.risk-level__move .icon-button {
+  width: 18px;
+  height: 13px;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.risk-level__color {
+  width: 30px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: #0b1118;
+  cursor: pointer;
+}
+
+.risk-level__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 26px;
+  font-weight: 600;
+}
+
+.risk-level__toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.risk-level__body {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 24px;
+}
+
+.risk-level__ports {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11.5px;
+}
+
+.risk-level__ports.is-invalid {
+  border-color: #ff6b5b;
+  box-shadow: 0 0 0 1px rgba(255, 107, 91, 0.35);
+}
+
+.risk-level__hint {
+  flex: none;
+  font-size: 10.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.risk-level__hint.is-error {
+  color: #ff8a8a;
+}
+
+.risk-level__palette {
+  display: flex;
+  gap: 5px;
+  padding-left: 24px;
+}
+
+.risk-level__chip {
+  padding: 2px 7px;
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.risk-dialog__tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.risk-dialog__preview {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.risk-swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+}
+
+/* ---------------------------------------------------------------------------
+   Risk summary panel: level → port → host tree
+   --------------------------------------------------------------------------- */
+.risk-summary {
+  width: min(760px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.risk-summary__totals {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.risk-summary__totals div {
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #0b1118;
+}
+
+.risk-summary__totals strong {
+  display: block;
+  font-size: 17px;
+  line-height: 1.2;
+}
+
+.risk-summary__totals span {
+  color: var(--muted);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.risk-summary__toolbar {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.risk-summary__search {
+  flex: 1;
+  min-width: 0;
+}
+
+.risk-summary__tree {
+  flex: 1;
+  min-height: 120px;
+  max-height: min(46vh, 460px);
+  overflow: auto;
+  margin-top: 10px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #0a1017;
+}
+
+.risk-branch + .risk-branch {
+  margin-top: 4px;
+}
+
+.risk-node {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.risk-node:hover {
+  background: #131c26;
+}
+
+.risk-node__caret {
+  width: 12px;
+  flex: none;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1;
+  transition: transform 0.12s;
+}
+
+.risk-node.is-open > .risk-node__caret {
+  transform: rotate(90deg);
+}
+
+.risk-node__dot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--level-color, #e5484d);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--level-color, #e5484d) 22%, transparent);
+}
+
+.risk-node__label {
+  font-weight: 600;
+}
+
+.risk-node__meta {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.risk-node--empty {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.risk-node--empty:hover {
+  background: transparent;
+}
+
+.risk-node__port {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.risk-node__service {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.risk-node--host .mono {
+  font-size: 11.5px;
+}
+
+.risk-children {
+  margin: 0;
+  padding: 0 0 0 18px;
+  list-style: none;
+  border-left: 1px solid var(--line);
+}
+
+.risk-children--hosts .risk-node {
+  font-size: 11.5px;
+}
+
+.risk-summary__actions {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.risk-summary__footnote {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.stat-hint {
+  font-style: normal;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.legend-edit {
+  grid-column: 1 / -1;
+  justify-self: start;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.legend-edit:hover {
+  text-decoration: underline;
+}
+
+.input--mono {
+  font-family: var(--mono);
 }

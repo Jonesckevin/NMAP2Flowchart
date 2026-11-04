@@ -26,7 +26,9 @@ Usage: ${BUILD_INFO.name} [options]
   -h, --help        Print this help and exit
 
 The usual NMAP_* environment variables are honoured: NMAP_API_HOST,
-NMAP_API_PORT, NMAP_DATA_DIR, NMAP_AUTH_ENABLED and the account limits.
+NMAP_API_PORT, NMAP_DATA_DIR, NMAP_AUTH_ENABLED, the account limits, and the
+risk levels shared with every browser (NMAP_RISK_LEVELS as inline JSON, or
+NMAP_RISK_POLICY_FILE pointing at a JSON file).
 `;
 
 const RUNTIME = `${process.platform}-${process.arch}`;

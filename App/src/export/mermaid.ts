@@ -1,6 +1,7 @@
 import { edgeLine, isLayerVisible, layerMap, nodeTitle, type DiagramDoc, type DiagramNode } from '../doc/types';
 import { iconEmoji } from '../icons/registry';
-import { openPorts, portSummaryOr, riskyPorts } from '../model/types';
+import { openPorts, portSummaryOr } from '../model/types';
+import { hexToRgba, nodeRisk, type RiskPolicy } from '../doc/risk';
 
 const mid = (id: string) => `n_${id.replace(/[^0-9a-zA-Z]+/g, '_')}`;
 const esc = (value: string) => value.replace(/"/g, "'").replace(/\s+/g, ' ').trim();
@@ -22,7 +23,7 @@ function labelFor(node: DiagramNode): string {
   return `${icon} ${title}`;
 }
 
-export function toMermaid(doc: DiagramDoc): string {
+export function toMermaid(doc: DiagramDoc, riskPolicy: RiskPolicy): string {
   const layers = layerMap(doc.layers);
   const visible = doc.nodes.filter((node) => isLayerVisible(layers, node.layerId, doc.focusedLayerId));
   const visibleIds = new Set(visible.map((node) => node.id));
@@ -55,11 +56,23 @@ export function toMermaid(doc: DiagramDoc): string {
     lines.push(`  ${mid(edge.source)} ${arrow}${label} ${mid(edge.target)}`);
   }
 
-  const risky = visible.filter((node) => node.host && riskyPorts(node.host).length > 0);
-  if (risky.length > 0) {
-    lines.push('  classDef risky fill:#3a1c1c,stroke:#e06c6c,color:#ffdcdc;');
-    lines.push(`  class ${risky.map((node) => mid(node.id)).join(',')} risky;`);
+  // One class per risk level, each host in its highest-priority level only, so
+  // the visual hierarchy matches the canvas.
+  const flagged = new Map<string, { label: string; color: string; nodes: string[] }>();
+  for (const node of visible) {
+    const risk = nodeRisk(node.host, riskPolicy);
+    if (!risk) continue;
+    const bucket = flagged.get(risk.id);
+    if (bucket) bucket.nodes.push(mid(node.id));
+    else flagged.set(risk.id, { label: risk.label, color: risk.color, nodes: [mid(node.id)] });
   }
+  for (const [id, entry] of flagged) {
+    lines.push(
+      `  classDef risk_${id} fill:${hexToRgba(entry.color, 0.14)},stroke:${entry.color},stroke-width:2px,color:${entry.color};`,
+    );
+    lines.push(`  class ${entry.nodes.join(',')} risk_${id};`);
+  }
+
   const idle = visible.filter((node) => node.host && openPorts(node.host).length === 0);
   if (idle.length > 0) {
     lines.push('  classDef bare fill:#1b2029,stroke:#3b4657,color:#8b97a8;');

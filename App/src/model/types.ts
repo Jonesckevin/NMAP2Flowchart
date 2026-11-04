@@ -65,11 +65,6 @@ export type Workspace = {
   collapsed: string[];
 };
 
-export const HIGH_RISK_PORTS = new Set([
-  21, 23, 69, 111, 135, 139, 445, 512, 513, 514, 1433, 1521, 2049, 3306, 3389,
-  5432, 5900, 5985, 6379, 9200, 11211, 27017,
-]);
-
 export function openPorts(host: NmapHost): NmapPort[] {
   return host.ports.filter((p) => p.state === 'open' || p.state === 'open|filtered');
 }
@@ -82,10 +77,6 @@ export function portSummaryOr(host: NmapHost, fallback: string, limit = 6): stri
   const summary = portSummary(host, limit);
   if (summary) return summary;
   return discoveryOnly(host) ? fallback : 'no open ports';
-}
-
-export function riskyPorts(host: NmapHost): NmapPort[] {
-  return openPorts(host).filter((p) => HIGH_RISK_PORTS.has(p.port));
 }
 
 export function hostLabel(host: NmapHost): string {

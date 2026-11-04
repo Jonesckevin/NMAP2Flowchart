@@ -13,6 +13,8 @@ import { ensureNodeBinary, describeTargets } from './lib/node-dist.mjs';
 
 const APP_DIR = path.resolve(import.meta.dirname, '..');
 const REPO_DIR = path.resolve(APP_DIR, '..');
+// Shipped next to every artifact so a server-wide risk policy is one edit away.
+const RISK_EXAMPLE = path.join(REPO_DIR, 'risk-policy.example.json');
 const SENTINEL_FUSE = 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2';
 
 const TARGETS = {
@@ -204,6 +206,14 @@ async function buildTarget({ name, outDir, blobPath, cacheDir }) {
   return output;
 }
 
+function copyRiskExample(directory) {
+  if (!fs.existsSync(RISK_EXAMPLE)) return null;
+  const target = path.join(directory, path.basename(RISK_EXAMPLE));
+  fs.copyFileSync(RISK_EXAMPLE, target);
+  log(`wrote ${path.relative(REPO_DIR, target)}`);
+  return target;
+}
+
 function writeChecksums(artifacts) {
   const lines = artifacts.map((file) => {
     const digest = createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -239,6 +249,12 @@ function writeReleaseNotes({ outDir, entries, pkg }) {
     '                    profile directory; --data-dir moves it)',
     '  -h, -v            usage / version',
     '',
+    'Risk levels (which ports turn a host red / orange / yellow) default to',
+    'Critical / Medium / Low. Change them per diagram or per account in the editor',
+    '(··· > Risk levels), or set the server-wide default with',
+    '  NMAP_RISK_POLICY_FILE=/path/to/risk-policy.json   (see risk-policy.example.json)',
+    '  NMAP_RISK_LEVELS=\'[{"label":"Critical","color":"#e5484d","ports":"23, 445"}]\'',
+    '',
     'Linux: run chmod +x on the downloaded binary first.',
     'Diagrams live in the browser storage unless --auth is used.',
     '',
@@ -257,8 +273,7 @@ function writeReleaseNotes({ outDir, entries, pkg }) {
   log(`wrote ${path.relative(REPO_DIR, target)}`);
 }
 
-function smokeTest(binary, extraArgs = []) {
-  const result = spawnSync(
+function smokeTest(binary, extraArgs = []) {  const result = spawnSync(
     process.execPath,
     [path.join(APP_DIR, 'scripts', 'smoke-standalone.mjs'), binary, ...extraArgs],
     { stdio: 'inherit' },
@@ -318,13 +333,20 @@ function portableReadme(name, target) {
     '  node.exe   official Node.js runtime, unmodified',
     '  app.cjs    NMAP2Flowchart (SPA + accounts API) as one bundle',
     '  start.cmd  launcher (start.sh on Linux)',
+    '  risk-policy.example.json   server-wide risk levels for NMAP_RISK_POLICY_FILE',
+    '',
+    'Risk levels default to Critical / Medium / Low and can be changed per diagram or',
+    'per account in the editor (··· > Risk levels). For a server-wide default, copy',
+    'risk-policy.example.json somewhere, edit it, and set before starting:',
+    '  NMAP_RISK_POLICY_FILE=/path/to/risk-policy.json   (or NMAP_RISK_LEVELS as JSON)',
     '',
   ];
   if (target.platform !== 'win32') lines.push('Linux: chmod +x node start.sh first.', '');
   return lines.join('\n');
 }
 
-async function buildPortable({ name, outDir, bundlePath, cacheDir }) {  const target = TARGETS[name];
+async function buildPortable({ name, outDir, bundlePath, cacheDir }) {
+  const target = TARGETS[name];
   const folder = path.join(outDir, `nmap2flowchart-portable-${name}`);
   const executableName = target.extension === '.exe' ? 'node.exe' : 'node';
 
@@ -334,6 +356,7 @@ async function buildPortable({ name, outDir, bundlePath, cacheDir }) {  const ta
   fs.copyFileSync(await nodeBinaryFor(name, cacheDir), path.join(folder, executableName));
   fs.copyFileSync(bundlePath, path.join(folder, 'app.cjs'));
   fs.writeFileSync(path.join(folder, 'README.txt'), portableReadme(name, target), 'utf8');
+  copyRiskExample(folder);
 
   if (target.platform === 'win32') {
     fs.writeFileSync(path.join(folder, 'start.cmd'), windowsLauncher(), 'utf8');
@@ -368,6 +391,7 @@ async function main() {
     fs.copyFileSync(bundlePath, appBundle);
     const digest = createHash('sha256').update(fs.readFileSync(appBundle)).digest('hex');
     fs.writeFileSync(`${appBundle}.sha256`, `${digest}  app.cjs\n`);
+    copyRiskExample(outDir);
     log(`wrote ${path.relative(REPO_DIR, appBundle)} (${(fs.statSync(appBundle).size / 1024 / 1024).toFixed(1)} MiB)`);
     if (values['no-smoke'] !== true) smokeTest(process.execPath, ['--script', appBundle]);
     console.log(`\nDone. Run it with: node ${path.relative(REPO_DIR, appBundle)}`);
@@ -390,6 +414,7 @@ async function main() {
     writeChecksums(artifacts.map((entry) => entry.file));
     writeReleaseNotes({ outDir, entries: artifacts, pkg });
   }
+  copyRiskExample(outDir);
 
   const hostTarget = targets.find(
     (name) => TARGETS[name].platform === process.platform && TARGETS[name].arch === process.arch,

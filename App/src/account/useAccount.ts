@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DiagramDoc } from '../doc/types';
+import type { RiskPolicy } from '../doc/risk';
 import {
   api,
   ApiError,
@@ -21,6 +22,8 @@ export type AccountController = {
   projects: ProjectSummary[];
   activeProjectId: string | null;
   activeProject: ProjectSummary | null;
+  /** Risk levels saved to the signed-in account, if any. */
+  riskPolicy: RiskPolicy | null;
   restoreProjectId: string | null;
   busy: boolean;
   error: string | null;
@@ -37,6 +40,8 @@ export type AccountController = {
   renameProject: (id: string, name: string) => Promise<boolean>;
   deleteProject: (id: string) => Promise<boolean>;
   saveActiveProject: (doc: DiagramDoc, projectId?: string) => void;
+  /** Stores the risk levels account-wide. Returns false when not signed in. */
+  saveRiskPolicy: (policy: RiskPolicy | null) => Promise<boolean>;
 };
 
 function messageFor(error: unknown): string {
@@ -60,6 +65,7 @@ export function useAccount(): AccountController {
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState<AccountUser | null>(null);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [riskPolicy, setRiskPolicy] = useState<RiskPolicy | null>(null);
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(null);
   const [restoreProjectId, setRestoreProjectId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -79,6 +85,7 @@ export function useAccount(): AccountController {
     clearStoredSession();
     setUser(null);
     setProjects([]);
+    setRiskPolicy(null);
     activeProjectIdRef.current = null;
     setActiveProjectIdState(null);
     setRestoreProjectId(null);
@@ -128,6 +135,13 @@ export function useAccount(): AccountController {
           const { projects: list } = await api.listProjects(stored.token);
           if (cancelled) return;
           setProjects(list);
+          try {
+            const preferences = await api.getPreferences(stored.token);
+            if (!cancelled) setRiskPolicy(preferences.risk ?? null);
+          } catch {
+            // Preferences are optional; the browser default still applies.
+          }
+          if (cancelled) return;
           const preferred = readActiveProjectId(me.userId);
           if (preferred && list.some((project) => project.id === preferred)) {
             setRestoreProjectId(preferred);
@@ -154,6 +168,7 @@ export function useAccount(): AccountController {
       setUser(result.user);
       setError(null);
       setProjects([]);
+      setRiskPolicy(null);
       activeProjectIdRef.current = null;
       setActiveProjectIdState(null);
       setRestoreProjectId(null);
@@ -164,6 +179,12 @@ export function useAccount(): AccountController {
         setProjects(list);
       } catch (cause) {
         if (cause instanceof ApiError && cause.status === 401) clearSession();
+      }
+      try {
+        const preferences = await api.getPreferences(result.token);
+        setRiskPolicy(preferences.risk ?? null);
+      } catch {
+        // Preferences are optional.
       }
     },
     [clearSession],
@@ -361,6 +382,27 @@ export function useAccount(): AccountController {
     [clearSession],
   );
 
+  const saveRiskPolicy = useCallback(
+    async (policy: RiskPolicy | null) => {
+      const token = tokenRef.current;
+      if (!token) {
+        setError('Sign in to keep risk levels across diagrams.');
+        return false;
+      }
+      setError(null);
+      try {
+        const result = await api.savePreferences(token, policy);
+        setRiskPolicy(result.risk ?? null);
+        setNotice(policy ? 'Risk levels saved to your account' : 'Account risk levels cleared');
+        return true;
+      } catch (cause) {
+        fail(cause);
+        return false;
+      }
+    },
+    [fail],
+  );
+
   const clearFeedback = useCallback(() => {
     setError(null);
     setNotice(null);
@@ -378,6 +420,7 @@ export function useAccount(): AccountController {
     projects,
     activeProjectId,
     activeProject,
+    riskPolicy,
     restoreProjectId,
     busy,
     error,
@@ -394,5 +437,6 @@ export function useAccount(): AccountController {
     renameProject,
     deleteProject,
     saveActiveProject,
+    saveRiskPolicy,
   };
 }

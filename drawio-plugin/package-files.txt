@@ -1,0 +1,11 @@
+# What ships inside release/nmap2drawio-plugin.zip (and the folder next to it).
+# Paths are relative to drawio-plugin/; a directory brings everything under it.
+# build-release.ps1 and .github/workflows/release-portable.yml both read this list,
+# so the local package and the release asset cannot drift apart.
+plugins/
+samples/
+webapp/
+README.md
+docker-compose.yml
+install-plugin.ps1
+install-plugin.sh

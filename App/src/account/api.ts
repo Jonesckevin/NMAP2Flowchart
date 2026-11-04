@@ -1,4 +1,5 @@
 import type { DiagramDoc } from '../doc/types';
+import type { RiskPolicy } from '../doc/risk';
 import type { AccountUser, AuthFeatures, AuthResponse, ProjectDetail, ProjectSummary } from './types';
 
 
@@ -12,6 +13,7 @@ export const BROWSER_FEATURES: AuthFeatures = {
   guestLoginEnabled: false,
   guestTtlHours: 0,
   maxProjectBytes: 0,
+  risk: null,
 };
 
 export class ApiError extends Error {
@@ -150,4 +152,9 @@ export const api = {
 
   deleteProject: (token: string, id: string) =>
     request<{ ok: boolean }>(`/projects/${id}`, { method: 'DELETE', token }),
+
+  getPreferences: (token: string) => request<{ risk: RiskPolicy | null }>('/preferences', { token }),
+
+  savePreferences: (token: string, risk: RiskPolicy | null) =>
+    request<{ risk: RiskPolicy | null }>('/preferences', { method: 'PUT', token, body: { risk } }),
 };
