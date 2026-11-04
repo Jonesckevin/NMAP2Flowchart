@@ -24,7 +24,7 @@ coverage
 *.nmap
 
 # The accounts database lives in a volume, never in the build context.
-# (Only the runtime store — App/src/data holds the bundled sample scan.)
+# (Only the runtime store – App/src/data holds the bundled sample scan.)
 data
 App/data
 *.db

@@ -50,11 +50,11 @@ const TIP_GROUPS: { title: string; tips: Tip[] }[] = [
       { keys: 'Select → Connect', what: 'Click a node, hit Connect, then click the second node. Esc cancels.' },
       {
         keys: 'Inspector → Change icon',
-        what: 'Imports pick an icon from the hostname/vendor model, the fingerprinted platform, the NIC vendor and the open ports — in that order, so a router on OpenWrt stays a router. Change icon overrides it.',
+        what: 'Imports pick an icon from the hostname/vendor model, the fingerprinted platform, the NIC vendor and the open ports – in that order, so a router on OpenWrt stays a router. Change icon overrides it.',
       },
       {
         keys: 'Inspector → Accent',
-        what: 'Give any card, note or frame its own colour: it becomes the border. Selecting a card turns the border green while it is selected, and a risk level colour always outranks the accent — then the accent shows as a stripe on the left edge instead.',
+        what: 'Give any card, note or frame its own colour: it becomes the border. Selecting a card turns the border green while it is selected, and a risk level colour always outranks the accent – then the accent shows as a stripe on the left edge instead.',
       },
       {
         keys: 'Risk',
@@ -93,7 +93,7 @@ const TIP_GROUPS: { title: string; tips: Tip[] }[] = [
       },
       {
         keys: 'Drag the panel edge',
-        what: 'Resize the layers panel — double-click the edge to go back to the default width. The width is remembered in this browser.',
+        what: 'Resize the layers panel – double-click the edge to go back to the default width. The width is remembered in this browser.',
       },
       {
         keys: '⋯ → Add scan as new layer',
@@ -112,7 +112,7 @@ const TIP_GROUPS: { title: string; tips: Tip[] }[] = [
       { keys: 'Delete / Ctrl+Z', what: 'Remove the selection (several nodes at once) / undo. Ctrl+Shift+Z redoes.' },
       {
         keys: '⋯ → Risk levels',
-        what: 'Decide which ports count as risky: per level a name, a colour and a list of ports or ranges (8000-8100). The list is the hierarchy — the top level wins, so a red port outranks an orange one. Save to this diagram, to your account, or leave the diagram inheriting the server default. Common ports… opens a reference of well-known service ports with the level each one falls into.',
+        what: 'Decide which ports count as risky: per level a name, a colour and a list of ports or ranges (8000-8100). The list is the hierarchy – the top level wins, so a red port outranks an orange one. Save to this diagram, to your account, or leave the diagram inheriting the server default. Common ports… opens a reference of well-known service ports with the level each one falls into.',
       },
       {
         keys: 'Filter “risk:…”',
@@ -128,7 +128,7 @@ const TIP_GROUPS: { title: string; tips: Tip[] }[] = [
       },
       {
         keys: 'Export menu',
-        what: 'The note at the top states the export scope before you pick a format — the focused layer, hidden nodes, and whether the canvas filter is ignored.',
+        what: 'The note at the top states the export scope before you pick a format – the focused layer, hidden nodes, and whether the canvas filter is ignored.',
       },
       {
         keys: 'Mermaid / draw.io',

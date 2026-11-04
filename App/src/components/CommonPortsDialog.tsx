@@ -111,7 +111,7 @@ function CommonPortsPanel({
 
         <p className="dialog__note">
           The service ports a scan usually finds, grouped by the level each one lands in with the current
-          levels. Use <strong>Add</strong> to put a port into the level above it — handy when a range in your
+          levels. Use <strong>Add</strong> to put a port into the level above it – handy when a range in your
           own setup is missing a well-known port.
         </p>
 

@@ -185,7 +185,7 @@ finally {
 }
 
 if (-not $SkipPlugin) {
-    # The plugin has no build step — it is mounted into draw.io as-is — so the
+    # The plugin has no build step – it is mounted into draw.io as-is – so the
     # release job is to prove it still matches App/ and the bundled sample, then
     # package it so it can be handed over without cloning the repository.
     Write-Host '==> draw.io plugin' -ForegroundColor Cyan
@@ -274,7 +274,7 @@ if (-not $SkipBundle) {
             throw "could not read the SPA asset name from App\dist\index.html"
         }
         if (-not (Select-String -LiteralPath $bundle -Pattern ([regex]::Escape($asset)) -Quiet)) {
-            throw "release/app.cjs does not contain $asset — it was built from a stale dist/"
+            throw "release/app.cjs does not contain $asset – it was built from a stale dist/"
         }
         Write-Host "    app.cjs embeds the current build ($asset)" -ForegroundColor Green
     }

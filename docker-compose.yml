@@ -63,7 +63,7 @@ services:
       # Leave both unset to use the built-in Critical / Medium / Low tiers.
       #
       # NMAP_RISK_LEVELS takes the whole policy inline, as JSON: a bare array of
-      # levels or {"levels": [...]}. The array order is the priority — the first
+      # levels or {"levels": [...]}. The array order is the priority – the first
       # level a host matches decides its colour, so red outranks orange.
       # In .env wrap the value in single quotes (it contains spaces and '#'):
       #   NMAP_RISK_LEVELS='[{"label":"Critical","color":"#e5484d","ports":"23, 445, 3389, 3306"},{"label":"Review","color":"#a855f7","ports":"8000-8100, 9000-9100"},{"label":"Web","color":"#e3c53d","ports":"80, 443"}]'
@@ -75,7 +75,7 @@ services:
       # folder: uncomment the volume above and set the path to match:
       #   NMAP_RISK_POLICY_FILE: /data/risk.json
       # Per level: label (shown on the card), color (#rgb or #rrggbb), ports
-      # ("21, 23, 512-514" — single ports and ranges, comma or space separated),
+      # ("21, 23, 512-514" – single ports and ranges, comma or space separated),
       # enabled (default true), id (optional slug, otherwise derived from label).
       NMAP_RISK_LEVELS: "${NMAP_RISK_LEVELS:-}"
       NMAP_RISK_POLICY_FILE: "${NMAP_RISK_POLICY_FILE:-}"

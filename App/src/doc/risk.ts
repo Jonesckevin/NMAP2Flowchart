@@ -516,7 +516,7 @@ export type RiskSummary = {
 };
 
 /**
- * Groups a set of cards by level, then by port, then by host — the shape the
+ * Groups a set of cards by level, then by port, then by host – the shape the
  * Risk panel shows and both report exports walk. Pass only the cards the canvas
  * is showing to summarise the current view.
  */

@@ -835,7 +835,7 @@ const VENDOR_ICONS: [RegExp, string][] = [
  * nmap lists several OS guesses at the same accuracy, and its distro guesses are
  * unreliable: a Proxmox VM ties "Linux 4.15 - 5.19" with "OpenWrt 21.02" and
  * "MikroTik RouterOS" at 100 each. A distro may only pick an icon when no generic
- * family is tied with it — otherwise the role has to come from what the box serves.
+ * family is tied with it – otherwise the role has to come from what the box serves.
  */
 function plausibleMatches(host: NmapHost): NmapOsMatch[] {
   if (host.os.length === 0) return [];
@@ -865,7 +865,7 @@ function guessId(name: string): string | undefined {
   return undefined;
 }
 
-/** Windows/macOS when every plausible guess agrees — those two say more about the
+/** Windows/macOS when every plausible guess agrees – those two say more about the
  *  machine than any single service banner does. */
 function soleDesktopOs(host: NmapHost): string | undefined {
   const families = new Set(plausibleMatches(host).map((match) => guessId(match.name)));
@@ -886,7 +886,7 @@ export function detectIcon(host: NmapHost | undefined): string {
     if (pattern.test(identity)) return id;
   }
 
-  // 2. A fingerprinted platform naming a role — but only when the guess is not tied
+  // 2. A fingerprinted platform naming a role – but only when the guess is not tied
   //    with a bare "Linux", which nmap offers for almost every x86 box.
   const roles = unambiguousOs(host);
   for (const [pattern, id] of OS_PATTERNS) {

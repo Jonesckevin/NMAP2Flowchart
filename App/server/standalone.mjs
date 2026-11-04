@@ -12,7 +12,7 @@ import { createAssetStore, createStaticHandler, decodeEmbeddedAssets } from './s
 import { openStore } from './store.mjs';
 
 const HELP = `
-${BUILD_INFO.name} ${BUILD_INFO.version} — nmap scans to network diagrams, offline.
+${BUILD_INFO.name} ${BUILD_INFO.version} – nmap scans to network diagrams, offline.
 
 Usage: ${BUILD_INFO.name} [options]
 
@@ -127,11 +127,11 @@ function openBrowser(url) {
       windowsVerbatimArguments: verbatim === true,
     });
     child.on('error', () => {
-      console.log(`  (could not start a browser — open ${url} yourself)`);
+      console.log(`  (could not start a browser – open ${url} yourself)`);
     });
     child.unref();
   } catch {
-    console.log(`  (could not start a browser — open ${url} yourself)`);
+    console.log(`  (could not start a browser – open ${url} yourself)`);
   }
 }
 
@@ -185,7 +185,7 @@ async function main() {
     port = await listen(server, config.host, config.port);
   } catch (error) {
     store?.close();
-    console.error(`Cannot listen on ${config.host}:${config.port} — ${error.message}`);
+    console.error(`Cannot listen on ${config.host}:${config.port} – ${error.message}`);
     process.exit(1);
   }
 
@@ -207,7 +207,7 @@ async function main() {
   }
 
   const shutdown = (signal) => {
-    console.log(`\n  ${signal} received — shutting down`);
+    console.log(`\n  ${signal} received – shutting down`);
     server.closeAllConnections?.();
     server.close(() => {
       store?.close();

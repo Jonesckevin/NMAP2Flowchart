@@ -12,7 +12,7 @@
  *
  * The parsing, subnet grouping, layout numbers and cell styles deliberately
  * mirror the main app so a draw.io diagram and an app diagram of the same scan
- * look the same. Those App/ paths are references for whoever maintains both —
+ * look the same. Those App/ paths are references for whoever maintains both –
  * nothing is loaded from them at runtime:
  *
  *   App/src/nmap/parseNmapXml.ts   → parseScanXml
@@ -36,7 +36,7 @@
   var DIAGRAM_PADDING = 40;
 
   // ---------------------------------------------------------------------------
-  // Geometry — mirror of App/src/graph/layout.ts
+  // Geometry – mirror of App/src/graph/layout.ts
   // ---------------------------------------------------------------------------
   var HOST_W = 216;
   var HOST_H = 96;
@@ -53,7 +53,7 @@
   var MAX_COLS = 4;
 
   // ---------------------------------------------------------------------------
-  // Cell styles — mirror of App/src/export/drawio.ts
+  // Cell styles – mirror of App/src/export/drawio.ts
   // ---------------------------------------------------------------------------
   var SECTION_STYLE =
     'rounded=0;html=1;dashed=1;dashPattern=6 6;fillColor=#f6f8fb;strokeColor=#b6c1d1;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontColor=#5a6a7d;fontStyle=1;fontSize=12;container=1;dropTarget=1;collapsible=0;';
@@ -265,7 +265,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // XML parsing — mirror of App/src/nmap/parseNmapXml.ts
+  // XML parsing – mirror of App/src/nmap/parseNmapXml.ts
   // ---------------------------------------------------------------------------
   function parseScripts(el) {
     return childrenOf(el, 'script')
@@ -457,7 +457,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Subnet grouping and layout — mirror of App/src/graph/layout.ts
+  // Subnet grouping and layout – mirror of App/src/graph/layout.ts
   // ---------------------------------------------------------------------------
   function ipParts(ip) {
     return String(ip)
@@ -628,7 +628,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Labels — the draw.io equivalents of the app's host cards
+  // Labels – the draw.io equivalents of the app's host cards
   // ---------------------------------------------------------------------------
   function originLabel(scan) {
     var detail = (scan.args || scan.fileName || '').replace(/\s+/g, ' ').slice(0, 120);

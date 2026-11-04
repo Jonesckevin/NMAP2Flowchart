@@ -2,7 +2,7 @@
 /**
  * Release check for the draw.io plugin.
  *
- * The plugin has no build step — it is mounted into draw.io as-is — so there is
+ * The plugin has no build step – it is mounted into draw.io as-is – so there is
  * nothing to compile. What can go wrong is drift: it mirrors the app's risk
  * tiers, layout numbers and cell styles, and the bundled sample scan has to keep
  * parsing. This script loads the plugin the way the browser would, then compares
@@ -46,7 +46,7 @@ const label = (path) => relative(root, path).replace(/\\/g, '/');
 
 // ---------------------------------------------------------------------------
 // A very small XML DOM, just enough for the plugin's parser (elements,
-// attributes and child elements — it never reads text nodes).
+// attributes and child elements – it never reads text nodes).
 // ---------------------------------------------------------------------------
 const decode = (text) =>
   text.replace(/&(#x?[0-9a-fA-F]+|amp|lt|gt|quot|apos);/g, (match, entity) => {
@@ -214,7 +214,7 @@ check('layout sizes match App/src/graph/layout.ts', () => {
 
 check('cell styles keep every key the app exporter writes', () => {
   const appExport = read(appDrawioPath);
-  // A scan import creates frames, cards, hops and the origin — no notes and no
+  // A scan import creates frames, cards, hops and the origin – no notes and no
   // hand-drawn links, so those two app styles have no plugin counterpart.
   const notMirrored = new Set(['NOTE_STYLE', 'LINK_EDGE']);
   const styles = [
@@ -251,7 +251,7 @@ check('bundled sample scan parses to the hosts and open ports the XML holds', ()
   expect(described.hops >= 1, 'the sample produced no traceroute hops');
   expect(
     Object.keys(described.riskLevels).length > 0,
-    'no sample port matched a risk level — the tiers and the sample have drifted apart',
+    'no sample port matched a risk level – the tiers and the sample have drifted apart',
   );
 });
 

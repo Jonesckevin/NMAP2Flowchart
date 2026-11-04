@@ -78,7 +78,7 @@ export type DiagramDoc = {
   focusedLayerId: string | null;
   /**
    * Risk levels for this diagram. Absent or `null` inherits the account policy,
-   * then the server policy, then the built-in default — so saved workspaces from
+   * then the server policy, then the built-in default – so saved workspaces from
    * before risk levels existed keep working unchanged.
    */
   risk?: RiskPolicy | null;

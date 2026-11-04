@@ -116,7 +116,7 @@ function gzipProbe(url) {
 const checks = [];
 function check(name, condition, detail = '') {
   checks.push({ name, ok: Boolean(condition), detail });
-  console.log(`${condition ? '  ok  ' : ' FAIL '} ${name}${condition || !detail ? '' : ` — ${detail}`}`);
+  console.log(`${condition ? '  ok  ' : ' FAIL '} ${name}${condition || !detail ? '' : ` – ${detail}`}`);
 }
 
 async function main() {

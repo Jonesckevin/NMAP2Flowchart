@@ -530,7 +530,7 @@ function Canvas() {
         setSelection({ nodes: [], edges: [] });
         setQuery('');
         setActiveLayerId(next.layers[0]?.id ?? MAIN_LAYER);
-        notify(`Replaced with ${scan.fileName} · ${scan.hosts.length} hosts — undo restores the previous diagram`);
+        notify(`Replaced with ${scan.fileName} · ${scan.hosts.length} hosts – undo restores the previous diagram`);
         fitSoon();
         return;
       }
@@ -550,7 +550,7 @@ function Canvas() {
       history.commit(merged);
       setSelection({ nodes: [], edges: [] });
       setQuery('');
-      notify(`${scan.fileName}: ${added} new, ${gone} missing, ${scan.hosts.length} hosts total — undo reverts the merge`);
+      notify(`${scan.fileName}: ${added} new, ${gone} missing, ${scan.hosts.length} hosts total – undo reverts the merge`);
       fitSoon();
     },
     [doc, history, loadDoc, notify, fitSoon],
@@ -569,7 +569,7 @@ function Canvas() {
           setSelection({ nodes: [], edges: [] });
           setQuery('');
           setActiveLayerId(saved.layers[0]?.id ?? MAIN_LAYER);
-          notify(`${fileName} opened — undo restores the previous diagram`);
+          notify(`${fileName} opened – undo restores the previous diagram`);
           fitSoon();
         } else {
           loadDoc(saved, `${fileName} opened`);
@@ -629,7 +629,7 @@ function Canvas() {
 
       const file = list[0];
       if (list.length > 1) {
-        notify(`Importing ${file.name} only — choose “Add scan as new layer” for a batch`);
+        notify(`Importing ${file.name} only – choose “Add scan as new layer” for a batch`);
       }
       try {
         const text = await file.text();
@@ -2191,7 +2191,7 @@ function Canvas() {
                             setGridMenu(false);
                           }}
                         >
-                          {size === 0 ? 'Off — free placement' : `${size} px`}
+                          {size === 0 ? 'Off – free placement' : `${size} px`}
                           {snapSize === size && <b aria-hidden="true">✓</b>}
                         </button>
                       ))}
@@ -2515,7 +2515,7 @@ function Canvas() {
                   : importPreview.mode === 'layer'
                     ? `${importEffect.nodes} nodes on a new layer · the current diagram is untouched`
                     : doc
-                      ? 'Replaces the open diagram — undo restores it'
+                      ? 'Replaces the open diagram – undo restores it'
                       : 'Starts a new diagram from this scan'}
               </p>
             )}

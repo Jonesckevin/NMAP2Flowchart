@@ -49,7 +49,7 @@ keep your editor on LF for `.sh` files.
 
 After pulling changes, `docker compose up -d --build` rebuilds and restarts in place. For a
 hot-reloading dev server run Vite on the host instead (`cd App && npm run dev`, with `npm run api`
-beside it if you want accounts) — see *Local development* above.
+beside it if you want accounts) – see *Local development* above.
 
 ## Offline executables (Windows and Linux)
 
@@ -66,8 +66,8 @@ npm run standalone                  # release/nmap2flowchart-win-x64.exe and rel
 npm run standalone -- --target all  # add the arm64 builds
 ```
 
-From the repository root, `build-release.ps1` runs the whole release in one go — install, both
-executable passes, the portable folders and the draw.io plugin package — and stops at the first
+From the repository root, `build-release.ps1` runs the whole release in one go – install, both
+executable passes, the portable folders and the draw.io plugin package – and stops at the first
 failing step:
 
 ```powershell
@@ -77,7 +77,7 @@ failing step:
 .\build-release.ps1 -SkipPlugin      # skip the draw.io plugin checks and package
 ```
 
-The plugin has no compile step — draw.io loads the plain script — so the release job is to prove it
+The plugin has no compile step – draw.io loads the plain script – so the release job is to prove it
 still matches the app and then package it. The build runs `node --check` on both browser files plus
 [drawio-plugin/check-plugin.mjs](./drawio-plugin/check-plugin.mjs), which loads the plugin the way
 draw.io does and fails if its risk tiers drift from [App/src/doc/risk.ts](./App/src/doc/risk.ts), if
@@ -121,7 +121,7 @@ cd App
 npm run standalone:portable
 ```
 
-`app.cjs` is the whole app — compiled SPA plus accounts API — as a 1 MB script, so on any machine that
+`app.cjs` is the whole app – compiled SPA plus accounts API – as a 1 MB script, so on any machine that
 already has **Node.js 24+** it is a one-file download:
 
 ```bash
@@ -137,7 +137,7 @@ rolling **`portable-latest`** release with three separate downloads:
 | Asset | What it is |
 | --- | --- |
 | `app.cjs` (+ `app.cjs.sha256`) | The whole app in one file for machines that already have Node.js 24+. Verify with `sha256sum -c app.cjs.sha256`. |
-| `nmap2flowchart-portable-win-x64.zip`<br>`nmap2flowchart-portable-linux-x64.zip` | The same app with an unmodified, signed `node` runtime and a `start.cmd` / `start.sh` launcher — for machines without Node.js, including Windows Sandbox and Windows 11 with Smart App Control. |
+| `nmap2flowchart-portable-win-x64.zip`<br>`nmap2flowchart-portable-linux-x64.zip` | The same app with an unmodified, signed `node` runtime and a `start.cmd` / `start.sh` launcher – for machines without Node.js, including Windows Sandbox and Windows 11 with Smart App Control. |
 | `nmap2drawio-plugin.zip` | The entire [draw.io plugin](./drawio-plugin): `docker compose up -d`, or `install-plugin.ps1 -Container <name>` against a draw.io you already run. |
 
 `.\build-release.ps1` writes the same files into `release/` with the same names, so a local build can be

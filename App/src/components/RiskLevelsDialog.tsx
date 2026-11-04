@@ -215,7 +215,7 @@ export function RiskLevelsDialog(props: RiskLevelsDialogProps) {
         </div>
 
         <p className="dialog__note">
-          Each level has a list of ports — single ports (<code>22</code>) or ranges (<code>8000-8100</code>),
+          Each level has a list of ports – single ports (<code>22</code>) or ranges (<code>8000-8100</code>),
           separated by commas. A host takes the colour of the level highest in this list that has one of its
           open ports, so a red port always outranks an orange one.
         </p>
@@ -265,7 +265,7 @@ export function RiskLevelsDialog(props: RiskLevelsDialogProps) {
                 style={{ '--level-color': level.color } as React.CSSProperties}
               >
                 <div className="risk-level__head">
-                  <span className="risk-level__rank" title="Priority — top wins">
+                  <span className="risk-level__rank" title="Priority – top wins">
                     {index + 1}
                   </span>
                   <div className="risk-level__move">

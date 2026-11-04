@@ -25,7 +25,7 @@ export type RiskReportRow = {
   layer: string;
 };
 
-/** One row per flagged card/port pair — the shape both formats are built from. */
+/** One row per flagged card/port pair – the shape both formats are built from. */
 export function riskReportRows(summary: RiskSummary): RiskReportRow[] {
   const rows: RiskReportRow[] = [];
   for (const entry of summary.levels) {
