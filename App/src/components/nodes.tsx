@@ -67,7 +67,8 @@ export const HostNode = memo(function HostNode({ data, selected }: NodeProps<App
               title={`${risk.label} · ${risk.tooltip}`}
               style={{ borderColor: hexToRgba(risk.color, 0.55), color: risk.color }}
             >
-              {risk.label.toLowerCase()} {risk.ports.length}
+              {risk.label.toLowerCase()}
+              <b>{risk.ports.length}</b>
             </span>
           )}
           {node.stale && <span className="tag tag--stale">stale</span>}

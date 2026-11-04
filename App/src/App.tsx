@@ -188,9 +188,9 @@ function Logo({ size = 38 }: { size?: number }) {
   );
 }
 
-function Stat({ label, value, tone }: { label: string; value: number; tone?: 'danger' }) {
+function Stat({ label, value, tone, optional }: { label: string; value: number; tone?: 'danger'; optional?: boolean }) {
   return (
-    <div className={`stat${tone === 'danger' ? ' stat--danger' : ''}`}>
+    <div className={`stat${tone === 'danger' ? ' stat--danger' : ''}${optional ? ' stat--optional' : ''}`}>
       <span className="stat__value">{value}</span>
       <span className="stat__label">{label}</span>
     </div>
@@ -272,7 +272,8 @@ function Canvas() {
   const [overviewOpen, setOverviewOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
   const [onlyMatches, setOnlyMatches] = useState(false);
-  const [snapToGrid, setSnapToGrid] = useState(true);
+  const [snapSize, setSnapSize] = useState(16);
+  const [gridMenu, setGridMenu] = useState(false);
 
   const effectiveLayerId = doc?.layers.some((layer) => layer.id === activeLayerId)
     ? activeLayerId
@@ -312,6 +313,7 @@ function Canvas() {
     setMoreMenu(false);
     setImportMenu(false);
     setExportMenu(false);
+    setGridMenu(false);
   }, []);
 
   const toggleSection = useCallback(
@@ -1004,6 +1006,7 @@ function Canvas() {
         if (linkSource) setLinkSource(null);
         setMenu(null);
         setEditingNote(null);
+        setGridMenu(false);
         return;
       }
       if (typing) return;
@@ -1066,10 +1069,10 @@ function Canvas() {
         return;
       }
 
-      const grid = 16;
+      const grid = snapSize || 16;
       const moved = new Map(dragged.map((item) => ({
-        x: snapToGrid ? Math.round(item.position.x / grid) * grid : item.position.x,
-        y: snapToGrid ? Math.round(item.position.y / grid) * grid : item.position.y,
+        x: snapSize ? Math.round(item.position.x / grid) * grid : item.position.x,
+        y: snapSize ? Math.round(item.position.y / grid) * grid : item.position.y,
       })).map((position, index) => [dragged[index].id, position]));
       if (!doc) return;
 
@@ -1119,7 +1122,7 @@ function Canvas() {
         notify(`Removed ${left} ${left === 1 ? 'node' : 'nodes'} from ${left === 1 ? 'its' : 'their'} section`);
       }
     },
-    [doc, history, layerRowAt, notify, snapToGrid],
+    [doc, history, layerRowAt, notify, snapSize],
   );
 
   const handleDrag: OnNodeDrag<AppNode> = useCallback(
@@ -1532,10 +1535,7 @@ function Canvas() {
 
         <div className="topbar__stats">
           {stats && (
-            <>
-              <Stat label="hosts" value={stats.hosts} />
-              <Stat label="open ports" value={stats.open} />
-              <Stat label="layers" value={stats.layers} />
+            <div className="topbar__counts">
               {stats.risk.levels
                 .filter((entry) => entry.ports > 0)
                 .slice(0, 1)
@@ -1547,7 +1547,10 @@ function Canvas() {
                     <span className="stat__label">{entry.level.label.toLowerCase()}</span>
                   </div>
                 ))}
-            </>
+              <Stat label="hosts" value={stats.hosts} />
+              <Stat label="open ports" value={stats.open} optional />
+              <Stat label="layers" value={stats.layers} optional />
+            </div>
           )}
           {doc && (
             <button
@@ -2034,62 +2037,95 @@ function Canvas() {
             setMenu(null);
           }}
         >
-          {doc && (
-            <nav className="workflow-progress" aria-label="Diagram workflow">
-              {(['Import', 'Arrange', 'Review', 'Export'] as const).map((step, index) => {
-                const selectionCount = selection.nodes.length + selection.edges.length;
-                const current =
-                  (index === 1 && selectionCount === 0) ||
-                  (index === 2 && selectionCount > 0);
-                const complete = index === 0 || (index === 1 && selectionCount > 0);
-                return (
-                  <span
-                    key={step}
-                    className={`workflow-progress__step${current ? ' is-current' : ''}${complete ? ' is-complete' : ''}`}
-                    aria-current={current ? 'step' : undefined}
-                  >
-                    <b>{complete ? '✓' : index + 1}</b>
-                    {step}
-                  </span>
-                );
-              })}
-            </nav>
-          )}
           {doc && overviewOpen && stats && (
             <section className="diagram-overview" aria-label="Diagram overview">
               <div className="diagram-overview__header">
-                <strong>Diagram overview</strong>
-                <button type="button" aria-label="Close overview" onClick={() => setOverviewOpen(false)}>×</button>
-              </div>
-              <dl>
-                <div><dt>Hosts</dt><dd>{stats.hosts}</dd></div>
-                <div><dt>Subnets</dt><dd>{stats.subnets}</dd></div>
-                <div><dt>Routes / hops</dt><dd>{stats.routes}</dd></div>
-                <div><dt>Services</dt><dd>{stats.services}</dd></div>
-                <div><dt>Open ports</dt><dd>{stats.open}</dd></div>
                 <div>
-                  <dt>Flagged hosts</dt>
-                  <dd>
-                    {stats.risk.hosts}
-                    {riskScope !== 'diagram' ? <em className="stat-hint"> · {RISK_SCOPE_LABEL[riskScope]}</em> : null}
-                  </dd>
+                  <span className="diagram-overview__eyebrow" title={doc.fileName}>
+                    {doc.fileName}
+                  </span>
+                  <strong>Diagram overview</strong>
                 </div>
-                {stats.risk.levels
-                  .filter((entry) => entry.ports > 0)
-                  .map((entry) => (
-                    <div key={entry.level.id}>
-                      <dt>
-                        <i className="risk-swatch" style={{ background: entry.level.color }} />
-                        {entry.level.label}
-                      </dt>
-                      <dd>
-                        {entry.hosts} hosts · {entry.ports} ports
-                      </dd>
-                    </div>
+                <button type="button" aria-label="Close overview" onClick={() => setOverviewOpen(false)}>
+                  ×
+                </button>
+              </div>
+
+              <div className="overview-metrics">
+                {[
+                  { label: 'Hosts', value: stats.hosts, title: 'Hosts in this diagram' },
+                  { label: 'Ports', value: stats.open, title: 'Open ports across every host' },
+                  { label: 'Subnets', value: stats.subnets, title: 'Subnet sections' },
+                  { label: 'Layers', value: stats.layers, title: 'Layers' },
+                ].map((metric) => (
+                  <div key={metric.label} className="overview-metric" title={metric.title}>
+                    <strong>{metric.value}</strong>
+                    <span>{metric.label}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="overview-rows">
+                <div>
+                  <span>Routes / hops</span>
+                  <b>{stats.routes}</b>
+                </div>
+                <div>
+                  <span>Distinct services</span>
+                  <b>{stats.services}</b>
+                </div>
+                <div>
+                  <span>Hidden nodes</span>
+                  <b>{stats.hidden}</b>
+                </div>
+              </div>
+
+              <div className="overview-risk">
+                <div className="overview-risk__head">
+                  <span>Risk</span>
+                  <b>{stats.risk.hosts} flagged</b>
+                </div>
+                <p className="overview-risk__scope">
+                  Levels from {RISK_SCOPE_LABEL[riskScope]}
+                </p>
+                {stats.risk.hosts > 0 && (
+                  <div className="overview-risk__bar" aria-hidden="true">
+                    {stats.risk.levels
+                      .filter((entry) => entry.hosts > 0)
+                      .map((entry) => (
+                        <span
+                          key={entry.level.id}
+                          style={{ background: entry.level.color, flexGrow: entry.hosts }}
+                        />
+                      ))}
+                  </div>
+                )}
+                <ul className="overview-risk__levels">
+                  {stats.risk.levels.map((entry) => (
+                    <li key={entry.level.id} className={entry.hosts > 0 ? '' : 'is-empty'}>
+                      <i style={{ background: entry.level.color }} />
+                      <span className="overview-risk__label">{entry.level.label}</span>
+                      <b>{entry.hosts}</b>
+                      <span className="overview-risk__ports">{entry.ports} ports</span>
+                    </li>
                   ))}
-                <div><dt>Hidden nodes</dt><dd>{stats.hidden}</dd></div>
-                <div><dt>Layers</dt><dd>{stats.layers}</dd></div>
-              </dl>
+                  {stats.risk.levels.length === 0 && (
+                    <li className="is-empty">
+                      <span className="overview-risk__label">No risk levels enabled</span>
+                    </li>
+                  )}
+                </ul>
+                <button
+                  type="button"
+                  className="overview-risk__link"
+                  onClick={() => {
+                    setOverviewOpen(false);
+                    setRiskSummaryOpen(true);
+                  }}
+                >
+                  Open the risk summary →
+                </button>
+              </div>
             </section>
           )}
           {doc && legendOpen && (
@@ -2122,26 +2158,59 @@ function Canvas() {
               {onlyMatches ? 'Show all nodes' : 'Show only matches'}
             </button>
           )}
-          {doc && (
-            <button
-              type="button"
-              className={`legend-toggle${legendOpen ? ' is-on' : ''}`}
-              aria-expanded={legendOpen}
-              onClick={() => setLegendOpen((open) => !open)}
-            >
-              Legend
-            </button>
-          )}
-          {doc && (
-            <button
-              type="button"
-              className={`grid-toggle${snapToGrid ? ' is-on' : ''}`}
-              aria-pressed={snapToGrid}
-              onClick={() => setSnapToGrid((enabled) => !enabled)}
-            >
-              Snap 16 px
-            </button>
-          )}
+          <div className="canvas-tools">
+            {doc && (
+              <div className="menu-wrap">
+                <button
+                  type="button"
+                  className={`grid-toggle${snapSize ? ' is-on' : ''}`}
+                  aria-expanded={gridMenu}
+                  aria-label={snapSize ? `Grid snap ${snapSize} px` : 'Grid snap off'}
+                  title="Snap cards to the grid while dragging"
+                  onClick={() => setGridMenu((open) => !open)}
+                >
+                  <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.4">
+                    <path d="M2 6h12M2 10h12M6 2v12M10 2v12" />
+                  </svg>
+                  {snapSize ? `${snapSize} px` : 'Off'}
+                </button>
+                {gridMenu && (
+                  <>
+                    <div className="menu-backdrop" onClick={() => setGridMenu(false)} />
+                    <div className="menu grid-menu" role="menu">
+                      <span className="grid-menu__title">Snap to grid</span>
+                      {[0, 8, 16, 32, 64].map((size) => (
+                        <button
+                          key={size}
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={snapSize === size}
+                          className={snapSize === size ? 'is-active' : ''}
+                          onClick={() => {
+                            setSnapSize(size);
+                            setGridMenu(false);
+                          }}
+                        >
+                          {size === 0 ? 'Off — free placement' : `${size} px`}
+                          {snapSize === size && <b aria-hidden="true">✓</b>}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+            {doc && (
+              <button
+                type="button"
+                className={`legend-toggle${legendOpen ? ' is-on' : ''}`}
+                aria-expanded={legendOpen}
+                onClick={() => setLegendOpen((open) => !open)}
+              >
+                Legend
+              </button>
+            )}
+          </div>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -2178,8 +2247,8 @@ function Canvas() {
             colorMode="dark"
             minZoom={0.08}
             maxZoom={2.2}
-            snapToGrid={snapToGrid}
-            snapGrid={[16, 16]}
+            snapToGrid={snapSize > 0}
+            snapGrid={[snapSize || 16, snapSize || 16]}
             fitView
             panOnScroll
             panOnDrag={[0, 1]}

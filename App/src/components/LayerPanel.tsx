@@ -1,5 +1,25 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { flattenLayers, LAYER_COLORS, type Layer } from '../doc/types';
+
+const PANEL_WIDTH_KEY = 'nmap2flowchart.layerPanelWidth';
+const PANEL_MIN = 190;
+const PANEL_MAX = 420;
+const PANEL_DEFAULT = 236;
+
+function clampWidth(width: number): number {
+  const ceiling = Math.min(PANEL_MAX, Math.round(window.innerWidth * 0.45));
+  return Math.max(PANEL_MIN, Math.min(ceiling, Math.round(width)));
+}
+
+function readStoredWidth(): number {
+  try {
+    const stored = Number(window.localStorage.getItem(PANEL_WIDTH_KEY));
+    if (Number.isFinite(stored) && stored > 0) return clampWidth(stored);
+  } catch {
+    // Private mode or blocked storage: fall back to the default width.
+  }
+  return PANEL_DEFAULT;
+}
 
 type LayerPanelProps = {
   layers: Layer[];
@@ -39,10 +59,77 @@ export function LayerPanel({
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [confirming, setConfirming] = useState<string | null>(null);
+  const [width, setWidth] = useState(readStoredWidth);
+  const [resizing, setResizing] = useState(false);
+  const drag = useRef<{ startX: number; startWidth: number } | null>(null);
   const rows = flattenLayers(layers);
 
+  const commitWidth = useCallback((next: number) => {
+    const clamped = clampWidth(next);
+    setWidth(clamped);
+    try {
+      window.localStorage.setItem(PANEL_WIDTH_KEY, String(clamped));
+    } catch {
+      // Non-fatal: the width just will not survive a reload.
+    }
+  }, []);
+
+  // Re-clamp when the window shrinks so the panel never eats the canvas.
+  useEffect(() => {
+    const onResize = () => setWidth((current) => clampWidth(current));
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   return (
-    <aside className="layer-panel" ref={panelRef}>
+    <aside className="layer-panel" ref={panelRef} style={{ width }}>
+      <div
+        className={`layer-panel__resizer${resizing ? ' is-dragging' : ''}`}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize the layers panel"
+        aria-valuenow={width}
+        aria-valuemin={PANEL_MIN}
+        aria-valuemax={PANEL_MAX}
+        tabIndex={0}
+        title="Drag to resize · double-click to reset"
+        data-tooltip="Drag to resize"
+        onPointerDown={(event) => {
+          event.preventDefault();
+          event.currentTarget.setPointerCapture(event.pointerId);
+          drag.current = { startX: event.clientX, startWidth: width };
+          setResizing(true);
+        }}
+        onPointerMove={(event) => {
+          const state = drag.current;
+          if (!state) return;
+          setWidth(clampWidth(state.startWidth + (event.clientX - state.startX)));
+        }}
+        onPointerUp={(event) => {
+          if (!drag.current) return;
+          drag.current = null;
+          setResizing(false);
+          event.currentTarget.releasePointerCapture(event.pointerId);
+          commitWidth(width);
+        }}
+        onPointerCancel={() => {
+          drag.current = null;
+          setResizing(false);
+        }}
+        onDoubleClick={() => commitWidth(PANEL_DEFAULT)}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowLeft') {
+            event.preventDefault();
+            commitWidth(width - 16);
+          } else if (event.key === 'ArrowRight') {
+            event.preventDefault();
+            commitWidth(width + 16);
+          } else if (event.key === 'Home') {
+            event.preventDefault();
+            commitWidth(PANEL_DEFAULT);
+          }
+        }}
+      />
       <header className="layer-panel__head">
         <span>Layers</span>
         <button type="button" className="icon-button" title="New top-level layer" data-tooltip="New top-level layer" aria-label="New top-level layer" onClick={() => onAdd(null)}>

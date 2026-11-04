@@ -66,6 +66,26 @@ npm run standalone                  # release/nmap2flowchart-win-x64.exe and rel
 npm run standalone -- --target all  # add the arm64 builds
 ```
 
+From the repository root, `build-release.ps1` runs the whole release in one go — install, both
+executable passes, the portable folders and the draw.io plugin package — and stops at the first
+failing step:
+
+```powershell
+.\build-release.ps1                  # everything
+.\build-release.ps1 -SkipInstall     # node_modules is already up to date
+.\build-release.ps1 -SkipPortable    # executables only (-SkipExecutables for the reverse)
+.\build-release.ps1 -SkipPlugin      # skip the draw.io plugin checks and package
+```
+
+The plugin has no compile step — draw.io loads the plain script — so the release job is to prove it
+still matches the app and then package it. The build runs `node --check` on both browser files plus
+[drawio-plugin/check-plugin.mjs](./drawio-plugin/check-plugin.mjs), which loads the plugin the way
+draw.io does and fails if its risk tiers drift from [App/src/doc/risk.ts](./App/src/doc/risk.ts), if
+the layout sizes differ from [App/src/graph/layout.ts](./App/src/graph/layout.ts), if a cell style
+loses a key the app's draw.io exporter writes, or if the bundled sample scan stops parsing. It then
+writes `release/nmap2drawio-plugin/` and `release/nmap2drawio-plugin.zip` (scripts, sample scan,
+loader, both installers and the Compose file), and unpacks the zip again to check it.
+
 ```powershell
 .\release\nmap2flowchart-portable-win-x64\start.cmd          # same flags as the .exe
 ```
@@ -107,6 +127,21 @@ already has **Node.js 24+** it is a one-file download:
 ```bash
 node app.cjs        # http://127.0.0.1:8080/
 ```
+
+### Downloads on the latest release
+
+Every push to the default branch rebuilds
+[`.github/workflows/release-portable.yml`](./.github/workflows/release-portable.yml) and republishes the
+rolling **`portable-latest`** release with three separate downloads:
+
+| Asset | What it is |
+| --- | --- |
+| `app.cjs` (+ `app.cjs.sha256`) | The whole app in one file for machines that already have Node.js 24+. Verify with `sha256sum -c app.cjs.sha256`. |
+| `nmap2flowchart-portable-win-x64.zip`<br>`nmap2flowchart-portable-linux-x64.zip` | The same app with an unmodified, signed `node` runtime and a `start.cmd` / `start.sh` launcher — for machines without Node.js, including Windows Sandbox and Windows 11 with Smart App Control. |
+| `nmap2drawio-plugin.zip` | The entire [draw.io plugin](./drawio-plugin): `docker compose up -d`, or `install-plugin.ps1 -Container <name>` against a draw.io you already run. |
+
+`.\build-release.ps1` writes the same files into `release/` with the same names, so a local build can be
+uploaded or handed out without renaming anything (`-SkipPlugin` / `-SkipPortable` skip either group).
 
 ## Which NMAP scans work
 

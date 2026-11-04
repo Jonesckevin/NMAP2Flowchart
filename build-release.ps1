@@ -1,20 +1,24 @@
 <#
 .SYNOPSIS
-    Builds every release artifact under release/: single-file executables and portable folders.
+    Builds every release artifact under release/.
 
 .DESCRIPTION
-    Checks the source, builds the SPA once per step and writes the artifacts the release workflow
-    expects. Stops at the first failing step, then verifies checksums and the files that must ship
-    beside the binaries.
+    One command for the whole release: checks (lint, API tests), the four single-file executables,
+    the two portable folders plus their zips, release/app.cjs and the packaged draw.io plugin.
+    The SPA is compiled once and reused, every step stops the run on failure, and the tail of the
+    script verifies checksums, archive contents and that the shipped bundle embeds the fresh build.
 
 .EXAMPLE
-    .\build-release.ps1                # checks, executables (4 targets), portable folders, app.cjs, draw.io plugin
+    .\build-release.ps1                # checks, executables (4 targets), portable folders + zips, app.cjs, draw.io plugin
 
 .EXAMPLE
     .\build-release.ps1 -SkipInstall   # node_modules is already up to date
 
 .EXAMPLE
-    .\build-release.ps1 -SkipPortable  # executables only
+    .\build-release.ps1 -SkipPortable  # executables, app.cjs and the plugin only
+
+.EXAMPLE
+    .\build-release.ps1 -SkipPlugin -SkipBundle   # just the executables and portable folders
 
 .EXAMPLE
     .\build-release.ps1 -Clean         # remove previous artifacts first
@@ -26,6 +30,7 @@ param(
     # Skip `npm run lint` and `npm run test:api`.
     [switch]$SkipChecks,
     [switch]$SkipExecutables,
+    # Skip the portable folders and their zips.
     [switch]$SkipPortable,
     # Skip release/app.cjs, the bundle the release workflow publishes.
     [switch]$SkipBundle,
@@ -38,6 +43,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$startedAt = Get-Date
 
 $appDir = Join-Path $PSScriptRoot 'App'
 $releaseDir = Join-Path $PSScriptRoot 'release'
@@ -46,11 +52,6 @@ $portableNames = @('win-x64', 'linux-x64')
 $pluginDir = Join-Path $PSScriptRoot 'drawio-plugin'
 $pluginStage = Join-Path $releaseDir 'nmap2drawio-plugin'
 $pluginZip = Join-Path $releaseDir 'nmap2drawio-plugin.zip'
-# The shipped paths live in the plugin folder so the release workflow reads the
-# same list and its asset matches what this script writes.
-$pluginFiles = Get-Content -LiteralPath (Join-Path $pluginDir 'package-files.txt') |
-    ForEach-Object { $_.Trim() } |
-    Where-Object { $_ -and -not $_.StartsWith('#') }
 
 function Invoke-Step {
     param([string]$Name, [string[]]$CommandArgs)
@@ -100,6 +101,22 @@ if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
     throw 'npm not found in PATH (install Node.js 22 or newer)'
 }
 
+# Fail fast with a useful message instead of a half-built release.
+foreach ($required in @(
+    'App\package-lock.json',
+    'App\scripts\build-standalone.mjs',
+    'docker\nginx.conf',
+    'risk-policy.example.json',
+    'drawio-plugin\package-files.txt')) {
+    Assert-File (Join-Path $PSScriptRoot $required) $required
+}
+
+# The shipped paths live in the plugin folder so the release workflow reads the
+# same list and its asset matches what this script writes.
+$pluginFiles = Get-Content -LiteralPath (Join-Path $pluginDir 'package-files.txt') |
+    ForEach-Object { $_.Trim() } |
+    Where-Object { $_ -and -not $_.StartsWith('#') }
+
 # Needed for the portable and plugin zips (Windows PowerShell 5.1 does not load it by default).
 Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
 
@@ -107,9 +124,10 @@ $nodeVersion = (& node --version) -replace '^v', ''
 Write-Host "==> Node.js $nodeVersion, npm $(& npm --version)" -ForegroundColor Cyan
 
 if ($Clean -and (Test-Path $releaseDir)) {
-    # Only names this pipeline writes, so a hand-placed file in release/ survives.
+    # Only names this pipeline writes (plus the nmap2flowio-* artifacts from before the
+    # rename), so a hand-placed file in release/ survives.
     $generated = Get-ChildItem -LiteralPath $releaseDir |
-        Where-Object { $_.Name -match '^(nmap2flowchart-[^\\/]+|nmap2drawio-plugin(\.zip)?|app\.cjs(\.sha256)?|SHA256SUMS\.txt|README\.txt|risk-policy\.example\.json)$' }
+        Where-Object { $_.Name -match '^(nmap2flow(io|chart)-[^\\/]+|nmap2drawio-plugin(\.zip)?|app\.cjs(\.sha256)?|SHA256SUMS\.txt|README\.txt|risk-policy\.example\.json)$' }
     foreach ($item in $generated) {
         Write-Host "    removing $($item.Name)" -ForegroundColor DarkGray
         Remove-Item -LiteralPath $item.FullName -Recurse -Force
@@ -247,6 +265,19 @@ if (-not $SkipBundle) {
         throw 'release/app.cjs.sha256 does not match release/app.cjs'
     }
     Write-Host '    app.cjs checksum matches' -ForegroundColor Green
+
+    # The bundle must embed the SPA that was just compiled, not an older dist/.
+    $distIndex = Join-Path $appDir 'dist\index.html'
+    if (Test-Path -LiteralPath $distIndex) {
+        $asset = [regex]::Match((Get-Content -LiteralPath $distIndex -Raw), 'assets/(index-[A-Za-z0-9_-]+\.js)').Groups[1].Value
+        if (-not $asset) {
+            throw "could not read the SPA asset name from App\dist\index.html"
+        }
+        if (-not (Select-String -LiteralPath $bundle -Pattern ([regex]::Escape($asset)) -Quiet)) {
+            throw "release/app.cjs does not contain $asset — it was built from a stale dist/"
+        }
+        Write-Host "    app.cjs embeds the current build ($asset)" -ForegroundColor Green
+    }
 }
 
 if (-not $SkipPlugin) {
@@ -275,3 +306,31 @@ if (-not $SkipPlugin) {
 
 Write-Host '==> release/' -ForegroundColor Green
 Get-ChildItem $releaseDir | Sort-Object Name | Select-Object Mode, LastWriteTime, Length, Name | Format-Table -AutoSize
+
+# One line per download with its size, so a release can be checked at a glance.
+Write-Host '==> downloads' -ForegroundColor Cyan
+$downloads = @(
+    'app.cjs',
+    'app.cjs.sha256',
+    'nmap2flowchart-portable-win-x64.zip',
+    'nmap2flowchart-portable-linux-x64.zip',
+    'nmap2drawio-plugin.zip'
+)
+foreach ($name in $downloads) {
+    $path = Join-Path $releaseDir $name
+    if (Test-Path -LiteralPath $path) {
+        $mb = (Get-Item -LiteralPath $path).Length / 1MB
+        Write-Host ("    {0,-40} {1,8:n1} MB" -f $name, $mb) -ForegroundColor DarkGray
+    }
+}
+foreach ($name in @('nmap2flowchart-win-x64.exe', 'nmap2flowchart-win-arm64.exe', 'nmap2flowchart-linux-x64', 'nmap2flowchart-linux-arm64')) {
+    $path = Join-Path $releaseDir $name
+    if (Test-Path -LiteralPath $path) {
+        $mb = (Get-Item -LiteralPath $path).Length / 1MB
+        Write-Host ("    {0,-40} {1,8:n1} MB  (release page)" -f $name, $mb) -ForegroundColor DarkGray
+    }
+}
+
+$elapsed = (Get-Date) - $startedAt
+if ($Clean) { Write-Host '    built from a clean release/' -ForegroundColor DarkGray }
+Write-Host ("==> done in {0:n0}m {1:n0}s" -f [math]::Floor($elapsed.TotalMinutes), $elapsed.Seconds) -ForegroundColor Green

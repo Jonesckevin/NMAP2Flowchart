@@ -49,6 +49,10 @@ const TIP_GROUPS: { title: string; tips: Tip[] }[] = [
       },
       { keys: 'Select → Connect', what: 'Click a node, hit Connect, then click the second node. Esc cancels.' },
       {
+        keys: 'Inspector → Change icon',
+        what: 'Imports pick an icon from the hostname/vendor model, the fingerprinted platform, the NIC vendor and the open ports — in that order, so a router on OpenWrt stays a router. Change icon overrides it.',
+      },
+      {
         keys: 'Inspector → Accent',
         what: 'Give any card, note or frame its own colour: it becomes the border. Selecting a card turns the border green while it is selected, and a risk level colour always outranks the accent — then the accent shows as a stripe on the left edge instead.',
       },
@@ -88,6 +92,10 @@ const TIP_GROUPS: { title: string; tips: Tip[] }[] = [
         what: 'Rename it. The eye hides it, ◎ focuses it, and exports follow the focus.',
       },
       {
+        keys: 'Drag the panel edge',
+        what: 'Resize the layers panel — double-click the edge to go back to the default width. The width is remembered in this browser.',
+      },
+      {
         keys: '⋯ → Add scan as new layer',
         what: 'Drop in another scan file and it lands on its own layer. Pick several files to get one layer each; the newest becomes active. The import preview opens with New layer already selected.',
       },
@@ -97,10 +105,14 @@ const TIP_GROUPS: { title: string; tips: Tip[] }[] = [
     title: 'Canvas & output',
     tips: [
       { keys: 'Drag, middle-drag', what: 'Pan with the left or middle mouse button. Scroll to pan, Ctrl+scroll to zoom, Fit to reset.' },
+      {
+        keys: 'Grid ▾ (bottom right)',
+        what: 'Snap dragged cards to a 8 / 16 / 32 / 64 px grid, or turn snapping off for free placement. Sits next to Legend.',
+      },
       { keys: 'Delete / Ctrl+Z', what: 'Remove the selection (several nodes at once) / undo. Ctrl+Shift+Z redoes.' },
       {
         keys: '⋯ → Risk levels',
-        what: 'Decide which ports count as risky: per level a name, a colour and a list of ports or ranges (8000-8100). The list is the hierarchy — the top level wins, so a red port outranks an orange one. Save to this diagram, to your account, or leave the diagram inheriting the server default.',
+        what: 'Decide which ports count as risky: per level a name, a colour and a list of ports or ranges (8000-8100). The list is the hierarchy — the top level wins, so a red port outranks an orange one. Save to this diagram, to your account, or leave the diagram inheriting the server default. Common ports… opens a reference of well-known service ports with the level each one falls into.',
       },
       {
         keys: 'Filter “risk:…”',
@@ -132,8 +144,17 @@ const TIP_GROUPS: { title: string; tips: Tip[] }[] = [
 
 export function HelpButton() {
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const dialogRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+
+  const toggleGroup = (title: string) =>
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (next.has(title)) next.delete(title);
+      else next.add(title);
+      return next;
+    });
 
   useEffect(() => {
     const showHelp = () => setOpen(true);
@@ -206,19 +227,38 @@ export function HelpButton() {
                 </button>
               </header>
               <div className="help-modal__body">
-                {TIP_GROUPS.map((group) => (
-                  <section key={group.title}>
-                    <h3>{group.title}</h3>
-                    <ul>
-                      {group.tips.map((tip) => (
-                        <li key={tip.keys}>
-                          <span className="help-panel__keys">{tip.keys}</span>
-                          <span>{tip.what}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                ))}
+                {TIP_GROUPS.map((group) => {
+                  const isCollapsed = collapsed.has(group.title);
+                  return (
+                    <section
+                      key={group.title}
+                      className={`help-section${isCollapsed ? ' is-collapsed' : ''}`}
+                    >
+                      <button
+                        type="button"
+                        className="help-section__head"
+                        aria-expanded={!isCollapsed}
+                        onClick={() => toggleGroup(group.title)}
+                      >
+                        <span className="help-section__caret" aria-hidden="true">
+                          ▸
+                        </span>
+                        <span className="help-section__title">{group.title}</span>
+                        <span className="help-section__count">{group.tips.length}</span>
+                      </button>
+                      {!isCollapsed && (
+                        <ul className="help-section__list">
+                          {group.tips.map((tip) => (
+                            <li key={tip.keys}>
+                              <span className="help-panel__keys">{tip.keys}</span>
+                              <span>{tip.what}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </section>
+                  );
+                })}
               </div>
               <p className="help-panel__foot">
                 Everything is stored in this browser tab. Save a <code>.nmap2flowchart.json</code> from the ⋯

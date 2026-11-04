@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { DiagramDoc } from '../doc/types';
 import type { NmapHost } from '../model/types';
+import { CommonPortsDialog } from './CommonPortsDialog';
 import {
   RISK_COLORS,
   RISK_SCOPE_LABEL,
@@ -56,6 +57,7 @@ export function RiskLevelsDialog(props: RiskLevelsDialogProps) {
   const [draft, setDraft] = useState<RiskLevel[]>(() => cloneRiskPolicy(policy).levels);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [commonOpen, setCommonOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -64,6 +66,7 @@ export function RiskLevelsDialog(props: RiskLevelsDialogProps) {
     setDraft(basePolicyFor(nextScope, props).levels);
     setError(null);
     setBusy(false);
+    setCommonOpen(false);
     const timer = window.setTimeout(() => {
       dialogRef.current?.querySelector<HTMLElement>('input, button:not([disabled])')?.focus();
     }, 0);
@@ -159,6 +162,18 @@ export function RiskLevelsDialog(props: RiskLevelsDialogProps) {
   const inherit = () => {
     props.onSaveDiagram(null);
     onClose();
+  };
+
+  /** Appends a port to a level's spec without rewriting the ranges already there. */
+  const addPortToLevel = (levelId: string, port: number) => {
+    setDraft((levels) =>
+      levels.map((level) => {
+        if (level.id !== levelId) return level;
+        if (parsePortSpec(level.ports).ports.includes(port)) return level;
+        const spec = level.ports.trim().replace(/[,;\s]+$/, '');
+        return { ...level, ports: spec ? `${spec}, ${port}` : String(port) };
+      }),
+    );
   };
 
   const scopeHint =
@@ -354,6 +369,14 @@ export function RiskLevelsDialog(props: RiskLevelsDialogProps) {
           >
             Built-in defaults
           </button>
+          <button
+            type="button"
+            className="btn btn--tiny risk-dialog__common"
+            onClick={() => setCommonOpen(true)}
+            title="Browse the common service ports and which level each one lands in"
+          >
+            Common ports…
+          </button>
           <span className="risk-dialog__preview" aria-hidden="true">
             {draft
               .filter((level) => level.enabled)
@@ -395,6 +418,13 @@ export function RiskLevelsDialog(props: RiskLevelsDialogProps) {
           </button>
         </div>
       </section>
+
+      <CommonPortsDialog
+        open={commonOpen}
+        onClose={() => setCommonOpen(false)}
+        policy={previewPolicy}
+        onAddPort={addPortToLevel}
+      />
     </div>,
     document.body,
   );

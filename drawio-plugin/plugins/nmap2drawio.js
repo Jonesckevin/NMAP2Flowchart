@@ -218,28 +218,44 @@
     return host.os[0].name.split(' ').slice(0, 2).join(' ');
   }
 
+  // Same first-match philosophy as the app's detectIcon (App/src/icons/registry.tsx):
+  // what the device *is* beats the firmware it runs, so an ASUS RT-AX55 on OpenWrt
+  // reads as a router rather than as OpenWrt.
   var ICON_RULES = [
+    [
+      /rt-ax\d|rt-ac\d|rt-n\d|zenwifi|asuswrt|\basus\b|unifi|\budm\b|\busg\b|\buxg\b|edgerouter|edgemax|\barcher\b|\bdeco\b|omada|nighthawk|\borbi\b|velop|\beero\b|fritz|routerboard|\bhap\b|mikrotik/i,
+      '📶',
+    ],
+    [/opnsense|pfsense/i, '🧱'],
+    [/proxmox|pveproxy|xcp-?ng|esxi|vmkernel|hyper-v/i, '🧩'],
+    [/plex|jellyfin|emby|kodi|serviio|subsonic/i, '🎬'],
+    [/gitlab|gitea|forgejo|gogs|bitbucket/i, '🌿'],
+    [/prometheus|grafana|zabbix|nagios|netdata|influxdb/i, '📈'],
+    [/docker|podman|containerd/i, '🐳'],
     [/windows/i, '🪟'],
     [/mac os|macos|apple|darwin/i, '🍎'],
-    [/router|cisco|juniper|mikrotik|openwrt|pfsense|gateway/i, '📶'],
-    [/printer|jetdirect/i, '🖨️'],
-    [/camera|webcam/i, '📷'],
+    [/printer|jetdirect|ipp/i, '🖨️'],
+    [/camera|webcam|rtsp|onvif/i, '📷'],
     [/\bswitch\b/i, '🔀'],
-    [/nas|network storage|fileserver/i, '💾'],
+    [/nas|synology|qnap|truenas|freenas|network storage|fileserver/i, '💾'],
+    [/router|cisco|juniper|gateway|openwrt/i, '📶'],
     [/linux|ubuntu|debian|centos|fedora|red hat|rhel|alpine|arch|suse|kali/i, '🐧'],
   ];
 
   function iconFor(host) {
-    var text = (host.os || [])
-      .map(function (match) {
-        return match.name;
-      })
-      .join(' ');
+    var text = (host.hostnames || []).join(' ') + ' ' + (host.vendor || '');
+    text +=
+      ' ' +
+      (host.os || [])
+        .map(function (match) {
+          return match.name;
+        })
+        .join(' ');
     text +=
       ' ' +
       (host.ports || [])
         .map(function (port) {
-          return port.product || '';
+          return [port.product, port.service].filter(Boolean).join(' ');
         })
         .join(' ');
     for (var i = 0; i < ICON_RULES.length; i += 1) {

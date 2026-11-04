@@ -1,4 +1,4 @@
-import type { NmapHost } from '../model/types';
+import type { NmapHost, NmapOsMatch } from '../model/types';
 import { OS_LOGOS } from './osLogos';
 
 const svg = (children: React.ReactNode) => (
@@ -179,6 +179,64 @@ export const ICONS: IconDef[] = [
     ),
   },
   {
+    id: 'hypervisor',
+    label: 'Hypervisor',
+    group: 'device',
+    color: '#e57000',
+    emoji: '🧩',
+    // Stacked slabs: a machine running other machines, rather than one container box.
+    glyph: svg(
+      <>
+        <rect x="3.5" y="4" width="17" height="5" rx="1.6" />
+        <rect x="5.5" y="9.5" width="13" height="5" rx="1.6" />
+        <rect x="7.5" y="15" width="9" height="5" rx="1.6" />
+        <path d="M7 6.5h.01M9.5 12h.01M10 17.5h.01" />
+      </>,
+    ),
+  },
+  {
+    id: 'media',
+    label: 'Media server',
+    group: 'device',
+    color: '#e5a00d',
+    emoji: '🎬',
+    glyph: svg(
+      <>
+        <rect x="3" y="5" width="18" height="14" rx="2.4" />
+        <path d="M10 9.2l5 2.8-5 2.8z" />
+      </>,
+    ),
+  },
+  {
+    id: 'git',
+    label: 'Git server',
+    group: 'device',
+    color: '#f05033',
+    emoji: '🌿',
+    glyph: svg(
+      <>
+        <circle cx="7" cy="6" r="2.2" />
+        <circle cx="7" cy="18" r="2.2" />
+        <circle cx="17" cy="12" r="2.2" />
+        <path d="M7 8.2v7.6" />
+        <path d="M9.2 6h3.4a2.2 2.2 0 0 1 2.2 2.2v1.6" />
+      </>,
+    ),
+  },
+  {
+    id: 'monitoring',
+    label: 'Monitoring',
+    group: 'device',
+    color: '#f46800',
+    emoji: '📈',
+    glyph: svg(
+      <>
+        <rect x="2.5" y="4" width="19" height="16" rx="2.4" />
+        <path d="M2.5 12h4l2-3.6 3 7.2 2.2-4.4 1.6 2.6h6.2" />
+      </>,
+    ),
+  },
+  {
     id: 'cloud',
     label: 'Cloud service',
     group: 'device',
@@ -215,14 +273,18 @@ export const ICONS: IconDef[] = [
   },
   {
     id: 'dns',
-    label: 'DNS / lookup',
+    label: 'DNS resolver',
     group: 'device',
     color: '#9bb7ff',
     emoji: '🔎',
+    // A resolution tree: one name fanning out to records. The old magnifier read
+    // as "search", which is how firewall distros ended up looking like a search box.
     glyph: svg(
       <>
-        <circle cx="11" cy="11" r="6" />
-        <path d="m16 16 4.5 4.5" />
+        <circle cx="12" cy="5" r="2.2" />
+        <path d="M12 7.2v4.2M12 11.4H6.2M12 11.4h5.8M6.2 11.4v3.4M17.8 11.4v3.4" />
+        <circle cx="6.2" cy="17" r="2" />
+        <circle cx="17.8" cy="17" r="2" />
       </>,
     ),
   },
@@ -648,6 +710,19 @@ export const ICONS: IconDef[] = [
   { id: 'android', label: 'Android', group: 'os', color: '#3ddc84', logo: OS_LOGOS.android, emoji: '🤖' },
   { id: 'openwrt', label: 'OpenWrt', group: 'os', color: '#35c2e8', logo: OS_LOGOS.openwrt, emoji: '📶' },
   { id: 'pfsense', label: 'pfSense', group: 'os', color: '#c9d3de', logo: OS_LOGOS.pfsense, emoji: '🧱' },
+  {
+    id: 'opnsense',
+    label: 'OPNsense',
+    group: 'os',
+    color: '#d94f00',
+    emoji: '🧱',
+    glyph: svg(
+      <>
+        <rect x="3" y="5" width="18" height="14" rx="1.6" />
+        <path d="M3 9.6h18M3 14.4h18M9 5v4.6M15 9.6v4.8M9 14.4V19" />
+      </>,
+    ),
+  },
   { id: 'proxmox', label: 'Proxmox VE', group: 'os', color: '#e57000', logo: OS_LOGOS.proxmox, emoji: '📦' },
   { id: 'synology', label: 'Synology DSM', group: 'os', color: '#b5b5b6', logo: OS_LOGOS.synology, emoji: '🗄️' },
   { id: 'truenas', label: 'TrueNAS', group: 'os', color: '#0095d5', logo: OS_LOGOS.truenas, emoji: '🧊' },
@@ -667,6 +742,27 @@ export function iconEmoji(id: string | undefined): string {
   return iconById(id).emoji;
 }
 
+/**
+ * What the scan calls the device, by model or vendor string. Consumer and prosumer
+ * routers answer "OpenWrt" or "Linux" to OS fingerprinting, so the model name is a
+ * better signal for what the box *is* than the firmware it happens to run.
+ */
+const APPLIANCE_PATTERNS: [RegExp, string][] = [
+  // ASUS: RT-AX55, RT-AC68U, ZenWiFi, plus the ASUSWRT firmware name.
+  [/rt-ax\d|rt-ac\d|rt-n\d|gt-ax\d|zenwifi|asuswrt|\basus\b/i, 'wrouter'],
+  // Ubiquiti/UniFi and EdgeMAX model names. The bare "ubiquiti" vendor string is
+  // left to the vendor table, which maps it to a plain router.
+  [/unifi|\budm\b|\busg\b|\buxg\b|edgerouter|edgemax|airmax/i, 'wrouter'],
+  // TP-Link, Deco, Omada; Netgear Nighthawk/Orbi; Linksys Velop; AVM Fritz!Box.
+  [/\barcher\b|\bdeco\b|\btl-(wr|er)\d|omada|tp-?link/i, 'wrouter'],
+  [/nighthawk|\borbi\b|\b(r|rax|mr|mx)\d{3,4}\b|netgear/i, 'wrouter'],
+  [/velop|\beero\b|linksys/i, 'wrouter'],
+  [/fritz|\bavm\b/i, 'wrouter'],
+  // Model families only. A bare "MikroTik RouterOS" in an OS *guess* is not a
+  // device: nmap reports it for plenty of Linux VMs, so the vendor table handles it.
+  [/routerboard|\bhap\b|\brb\d{3,4}\b|\bccr\d+\b/i, 'wrouter'],
+];
+
 const OS_PATTERNS: [RegExp, string][] = [
   [/linux mint|\bmint\b/i, 'mint'],
   [/ubuntu/i, 'ubuntu'],
@@ -683,9 +779,11 @@ const OS_PATTERNS: [RegExp, string][] = [
   [/gentoo/i, 'gentoo'],
   [/nixos/i, 'nixos'],
   [/opensuse|suse/i, 'suse'],
-  [/openwrt/i, 'openwrt'],
+  [/openwrt|lede\b|dd-wrt/i, 'openwrt'],
+  [/opnsense/i, 'opnsense'],
   [/pfsense/i, 'pfsense'],
-  [/proxmox/i, 'proxmox'],
+  [/proxmox|\bpve\b/i, 'proxmox'],
+  [/xcp-?ng|citrix hypervisor/i, 'hypervisor'],
   [/diskstation|synology|\bdsm\b/i, 'synology'],
   [/truenas|freenas/i, 'truenas'],
   [/esxi|vmkernel|vmware/i, 'vmware'],
@@ -697,8 +795,18 @@ const OS_PATTERNS: [RegExp, string][] = [
   [/linux|unix/i, 'linux'],
 ];
 
+/** OS ids that describe a *family* (a kernel) rather than a role. */
+const GENERIC_OS_IDS = new Set(['linux', 'windows', 'freebsd', 'openbsd', 'macos', 'android']);
+
+// Hypervisors and their management UIs come before the container rule: a Proxmox
+// host usually runs docker too, and "this machine runs VMs" is the better label.
 const SERVICE_PATTERNS: [RegExp, string][] = [
-  [/docker|podman/i, 'docker'],
+  [/proxmox|pveproxy|pve-manager|xcp-?ng|vmware|esxi|hyper-v|virtio/i, 'hypervisor'],
+  [/gitlab|gitea|forgejo|gogs|bitbucket/i, 'git'],
+  [/plex|jellyfin|emby|kodi|serviio|subsonic/i, 'media'],
+  [/prometheus|grafana|zabbix|netdata|influxdb|librenms|checkmk/i, 'monitoring'],
+  [/opnsense|pfsense|sophos|fortigate|palo alto/i, 'firewall'],
+  [/docker|podman|containerd/i, 'docker'],
   [/kubernetes|k8s/i, 'kubernetes'],
   [/synology|qnap|freenas|truenas|diskstation/i, 'nas'],
   [/hikvision|dahua|axis|ipcam|rtsp|onvif/i, 'camera'],
@@ -706,38 +814,98 @@ const SERVICE_PATTERNS: [RegExp, string][] = [
   [/mysql|postgres|mssql|mongodb|mariadb|oracle|redis|elasticsearch/i, 'database'],
   [/openvpn|wireguard|ipsec|strongswan/i, 'vpn'],
   [/postfix|exim|dovecot|smtp|imap/i, 'mail'],
-  [/bind|dnsmasq|named|unbound|domain/i, 'dns'],
-  [/nginx|apache|lighttpd|httpd|gitea|jenkins|gitlab|tomcat/i, 'web'],
-  [/routeros|cisco|juniper|mikrotik|ubiquiti|unifi/i, 'router'],
+  // Word boundaries matter here: "rpcbind" on port 111 used to satisfy a bare
+  // `bind`, which is how firewall and hypervisor boxes ended up with a DNS icon.
+  [/\bbind\b|dnsmasq|\bnamed\b|unbound|\bdomain\b/i, 'dns'],
+  [/nginx|openresty|apache|lighttpd|httpd|jenkins|tomcat/i, 'web'],
+  [/routeros|cisco|juniper|mikrotik|ubiquiti|unifi|openwrt/i, 'router'],
   [/aws|azure|gcp|cloudflare|s3/i, 'cloud'],
 ];
 
 const VENDOR_ICONS: [RegExp, string][] = [
-  [/proxmox|vmware|hyper-v|nutanix/i, 'container'],
+  // Virtual NIC vendors (Proxmox, VMware) are deliberately absent: they mean "this
+  // is a guest", not "this is the hypervisor", so they must not claim an icon.
   [/synology|qnap|seagate|western digital|drobo/i, 'nas'],
-  [/hikvision|dahua|axis|reolink|amcrest/i, 'camera'],
+  [/hikvision|dahua|axis|reolink|amcrest|ezviz/i, 'camera'],
   [/brother|canon|epson|xerox|lexmark|ricoh/i, 'printer'],
   [/ubiquiti|cisco|juniper|mikrotik|tp-link|netgear|d-link|aruba|fortinet|palo alto/i, 'router'],
 ];
 
+/**
+ * nmap lists several OS guesses at the same accuracy, and its distro guesses are
+ * unreliable: a Proxmox VM ties "Linux 4.15 - 5.19" with "OpenWrt 21.02" and
+ * "MikroTik RouterOS" at 100 each. A distro may only pick an icon when no generic
+ * family is tied with it — otherwise the role has to come from what the box serves.
+ */
+function plausibleMatches(host: NmapHost): NmapOsMatch[] {
+  if (host.os.length === 0) return [];
+  const best = host.os.reduce((max, match) => Math.max(max, match.accuracy), 0);
+  return host.os.filter((match) => match.accuracy >= best - 3);
+}
+
+function unambiguousOs(host: NmapHost): string[] {
+  const plausible = plausibleMatches(host);
+  const genericBest = plausible
+    .filter((match) => guessId(match.name) !== undefined)
+    .reduce((max, match) => Math.max(max, match.accuracy), -1);
+  return plausible
+    .filter((match) => guessId(match.name) === undefined)
+    .filter((match) => match.accuracy > genericBest)
+    .map((match) => match.name);
+}
+
+/** The kernel family a guess names, but only when it *starts* with it: "OpenWrt 21.02
+ *  (Linux 5.4)" is an OpenWrt guess, not a Linux one. */
+function guessId(name: string): string | undefined {
+  if (/^(microsoft\s+)?windows/i.test(name)) return 'windows';
+  if (/^(mac ?os|macos|darwin|ios)\b/i.test(name)) return 'macos';
+  if (/^(freebsd|openbsd|netbsd)\b/i.test(name)) return 'bsd';
+  if (/^android\b/i.test(name)) return 'android';
+  if (/^(linux|unix)\b/i.test(name)) return 'linux';
+  return undefined;
+}
+
+/** Windows/macOS when every plausible guess agrees — those two say more about the
+ *  machine than any single service banner does. */
+function soleDesktopOs(host: NmapHost): string | undefined {
+  const families = new Set(plausibleMatches(host).map((match) => guessId(match.name)));
+  if (families.size !== 1) return undefined;
+  const [family] = [...families];
+  return family === 'windows' || family === 'macos' ? family : undefined;
+}
+
 export function detectIcon(host: NmapHost | undefined): string {
   if (!host) return 'unknown';
 
-  const osText = host.os.map((match) => match.name).join(' ');
-  let genericOs: string | undefined;
-  for (const [pattern, id] of OS_PATTERNS) {
-    if (!pattern.test(osText)) continue;
-    if (id === 'linux' || id === 'windows') {
-      genericOs = genericOs ?? id;
-      continue;
-    }
-    return id;
+  // 1. What the device is, by model or vendor string: an ASUS RT-AX55 running
+  //    OpenWrt is still a wireless router on the map.
+  const identity = [host.hostnames.join(' '), host.vendor ?? '', host.os.map((match) => match.name).join(' ')].join(
+    ' ',
+  );
+  for (const [pattern, id] of APPLIANCE_PATTERNS) {
+    if (pattern.test(identity)) return id;
   }
 
+  // 2. A fingerprinted platform naming a role — but only when the guess is not tied
+  //    with a bare "Linux", which nmap offers for almost every x86 box.
+  const roles = unambiguousOs(host);
+  for (const [pattern, id] of OS_PATTERNS) {
+    if (GENERIC_OS_IDS.has(id) || id === 'android') continue;
+    if (roles.some((name) => pattern.test(name))) return id;
+  }
+
+  // 3. Windows/macOS, when the scan is sure. This beats a web banner: a Windows
+  //    workstation that happens to answer on 80 is still a Windows workstation.
+  const desktop = soleDesktopOs(host);
+  if (desktop) return desktop;
+
+  // 4. The NIC vendor: real hardware vendors (Ubiquiti, Synology, Brother…) say more
+  //    than the software a box happens to run. Virtual NIC vendors are excluded.
   for (const [pattern, id] of VENDOR_ICONS) {
     if (host.vendor && pattern.test(host.vendor)) return id;
   }
 
+  // 5. What the open ports actually serve.
   const serviceText = host.ports
     .map((port) => [port.service, port.product, port.extrainfo].filter(Boolean).join(' '))
     .join(' ');
@@ -745,12 +913,19 @@ export function detectIcon(host: NmapHost | undefined): string {
     if (pattern.test(serviceText)) return id;
   }
 
+  // 6. Port shape, when the banners said nothing.
   const open = new Set(host.ports.filter((port) => port.state === 'open').map((port) => port.port));
+  if (open.has(8006) || open.has(902) || open.has(903)) return 'hypervisor';
   if (open.has(3389)) return 'windows';
   if (open.has(9100) || open.has(515) || open.has(631)) return 'printer';
   if (open.has(554)) return 'camera';
   if (open.has(53) && open.size <= 2) return 'dns';
-  if (genericOs) return genericOs;
+
+  // 7. "It runs Linux" is the least informative answer, so it comes last.
+  for (const [pattern, id] of OS_PATTERNS) {
+    if (!GENERIC_OS_IDS.has(id)) continue;
+    if (host.os.some((match) => pattern.test(match.name))) return id;
+  }
   if (open.has(22) || open.has(80) || open.has(443) || open.has(445)) return 'server';
 
   return 'desktop';
