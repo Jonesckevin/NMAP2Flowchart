@@ -1879,11 +1879,12 @@ body {
 }
 
 
+/* The Add dock is always on screen; it sits beside the zoom controls so it never
+   covers the minimap or the grid/legend tools on narrow canvases. */
 .canvas-dock {
   position: absolute;
-  left: 50%;
-  bottom: 14px;
-  transform: translateX(-50%);
+  left: 50px;
+  bottom: 15px;
   display: flex;
   align-items: center;
   gap: 2px;
@@ -1901,6 +1902,22 @@ body {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--muted);
+}
+
+/* Narrow canvas: the label goes, the dock tightens, and (when there is room for it)
+   the grid/legend tools drop into the corner the minimap vacated. */
+.canvas--narrow .canvas-dock__label {
+  display: none;
+}
+
+.canvas--narrow .canvas-dock {
+  padding: 4px;
+}
+
+@media (min-width: 761px) {
+  .canvas--narrow .canvas-tools {
+    bottom: 15px;
+  }
 }
 
 .dock-btn {
@@ -3376,9 +3393,11 @@ select.input {
     z-index: 29;
   }
   .canvas-dock {
+    left: 50px;
     bottom: 8px;
-    max-width: calc(100% - 16px);
+    max-width: calc(100% - 58px);
     padding: 4px;
+    overflow-x: auto;
   }
   .canvas-dock__label {
     display: none;
@@ -3553,6 +3572,63 @@ select.input {
 .import-preview__metadata dd {
   margin: 0;
   overflow-wrap: anywhere;
+}
+.design-open__risk {
+  margin-top: 16px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.015);
+}
+.design-open__risk.is-on {
+  border-color: rgba(47, 214, 165, 0.42);
+  background: rgba(47, 214, 165, 0.06);
+}
+.design-open__toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  cursor: pointer;
+}
+.design-open__toggle input {
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+}
+.design-open__toggle strong,
+.design-open__note strong {
+  display: block;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+.design-open__toggle em {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.45;
+}
+.design-open__note {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.design-open__note strong {
+  display: inline;
+  font-size: inherit;
+}
+.design-open__swatches {
+  display: flex;
+  gap: 5px;
+  margin: 9px 0 0;
+}
+.design-open__swatches i {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.35);
 }
 @media (max-width: 760px) {
   .autosave-status {

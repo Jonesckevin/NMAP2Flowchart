@@ -21,6 +21,10 @@ const TIP_GROUPS: { title: string; tips: Tip[] }[] = [
         what: 'Select everything drawn on the canvas, subnet frames included. Delete then clears the diagram.',
       },
       { keys: 'Right-click', what: 'Add a note, host, hop or section here; duplicate, delete or fit the view.' },
+      {
+        keys: '+ Host / Hop / Section / Note',
+        what: 'The dock at the bottom of the canvas is always there. With a frame selected, every click adds another host into it and the frame stays selected – click the canvas to stop.',
+      },
     ],
   },
   {
@@ -124,7 +128,11 @@ const TIP_GROUPS: { title: string; tips: Tip[] }[] = [
       },
       {
         keys: 'Import / Open',
-        what: 'Every XML import previews first. Merge refreshes matching hosts and keeps the rest (missing hosts stay, flagged stale), Replace starts over, New layer puts the scan beside the diagram. All three are undoable.',
+        what: 'Every XML import previews first. Merge refreshes matching hosts and keeps the rest (missing hosts stay, flagged stale), Replace starts over, New layer puts the scan beside the diagram. All three are undoable. Open design file (.json) reopens a diagram saved here or elsewhere.',
+      },
+      {
+        keys: 'Export → Design file (.json)',
+        what: 'Saves the whole diagram – layers, positions, notes, connections and its risk levels – as one file another instance can open.',
       },
       {
         keys: 'Export menu',
@@ -261,8 +269,8 @@ export function HelpButton() {
                 })}
               </div>
               <p className="help-panel__foot">
-                Everything is stored in this browser tab. Save a <code>.nmap2flowchart.json</code> from the ⋯
-                menu to keep a copy.
+                Everything is stored in this browser tab. Save a <code>.nmap2flowchart.json</code> design file to
+                keep a copy or open it in another instance.
               </p>
             </div>
           </div>,

@@ -74,6 +74,8 @@ import {
   type NewNodeKind,
   type StackMode,
 } from './doc/operations';
+import { DesignOpenDialog, type DesignPreview } from './components/DesignOpenDialog';
+import { DESIGN_EXTENSION, buildDesignFile, looksLikeJson, readDesignFile } from './doc/designFile';
 import { parseNmapXml } from './nmap/parseNmapXml';
 import { openPorts, discoveryOnly, type NmapScan } from './model/types';
 import {
@@ -133,20 +135,27 @@ function downloadBlob(name: string, blob: Blob) {
 
 const EXPORT_DPI = 300;
 
+/** Browser storage, recovery and design files all use the same reader. */
 function readDoc(raw: string): DiagramDoc | null {
-  try {
-    const parsed = JSON.parse(raw) as { doc?: DiagramDoc; version?: number } | DiagramDoc;
-    const candidate = (parsed as { doc?: DiagramDoc }).doc ?? (parsed as DiagramDoc);
-    if (candidate && (candidate as DiagramDoc).version === 2 && Array.isArray((candidate as DiagramDoc).nodes)) {
-      return candidate as DiagramDoc;
-    }
-  } catch {
-  }
-  return null;
+  const result = readDesignFile(raw);
+  return result.ok ? result.doc : null;
 }
 
 function baseName(fileName: string) {
   return fileName.replace(/\.[^.]+$/, '') || 'nmap-diagram';
+}
+
+/**
+ * Nudges a new node off any card already sitting on that spot, so pressing the dock
+ * twice never drops two cards exactly on top of each other.
+ */
+function freeSpot(doc: DiagramDoc, at: { x: number; y: number }) {
+  const taken = doc.nodes.filter((node) => !node.parentId).map((node) => node.position);
+  let point = at;
+  for (let step = 0; step < 24 && taken.some((p) => Math.abs(p.x - point.x) < 8 && Math.abs(p.y - point.y) < 8); step += 1) {
+    point = { x: point.x + 28, y: point.y + 28 };
+  }
+  return point;
 }
 
 function onboardingDismissed() {
@@ -269,11 +278,14 @@ function Canvas() {
   const [importing, setImporting] = useState(false);
   const [autosaveStatus, setAutosaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
+  const [designPreview, setDesignPreview] = useState<DesignPreview | null>(null);
   const [overviewOpen, setOverviewOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
   const [onlyMatches, setOnlyMatches] = useState(false);
   const [snapSize, setSnapSize] = useState(16);
   const [gridMenu, setGridMenu] = useState(false);
+  /** True when the canvas is too narrow to share its bottom row with the minimap. */
+  const [narrowCanvas, setNarrowCanvas] = useState(false);
 
   const effectiveLayerId = doc?.layers.some((layer) => layer.id === activeLayerId)
     ? activeLayerId
@@ -356,8 +368,20 @@ function Canvas() {
     [history, notify, fitSoon],
   );
 
-  const restoreProjectId = account.restoreProjectId;
-  const openAccountProject = account.openProject;
+  // The Add dock is always on screen, so the minimap steps aside once the canvas
+  // is too narrow for both of them in the bottom row.
+  useEffect(() => {
+    const element = canvasRef.current;
+    if (!element || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(([entry]) => {
+      const width = entry.contentRect.width;
+      if (width > 0) setNarrowCanvas(width < 620);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  const restoreProjectId = account.restoreProjectId;  const openAccountProject = account.openProject;
   const accountProjectId = account.activeProjectId;
   const accountSaveState = account.saveState;
   const accountError = account.error;
@@ -558,22 +582,13 @@ function Canvas() {
 
   const handleText = useCallback(
     (text: string, fileName: string, mode: ImportMode = 'merge') => {
-      if (fileName.toLowerCase().endsWith('.json')) {
-        const saved = readDoc(text);
-        if (!saved) {
-          notify('That JSON file is not an NMAP2Flowchart diagram.');
+      if (looksLikeJson(text)) {
+        const result = readDesignFile(text);
+        if (!result.ok) {
+          notify(result.reason);
           return false;
         }
-        if (doc) {
-          history.commit(saved);
-          setSelection({ nodes: [], edges: [] });
-          setQuery('');
-          setActiveLayerId(saved.layers[0]?.id ?? MAIN_LAYER);
-          notify(`${fileName} opened – undo restores the previous diagram`);
-          fitSoon();
-        } else {
-          loadDoc(saved, `${fileName} opened`);
-        }
+        setDesignPreview({ fileName, design: result.design, doc: result.doc, repair: result.repair });
         return true;
       }
       try {
@@ -584,7 +599,7 @@ function Canvas() {
         return false;
       }
     },
-    [doc, fitSoon, handleScan, history, loadDoc, notify],
+    [handleScan, notify],
   );
 
   const handleFiles = useCallback(
@@ -601,9 +616,13 @@ function Canvas() {
         let layerId: string | null = null;
         let added = 0;
         let failed = 0;
+        let designFile = false;
         for (const file of list) {
           try {
-            const result = importScanAsLayer(next, parseNmapXml(await file.text(), file.name));
+            const text = await file.text();
+            designFile = looksLikeJson(text);
+            if (designFile) break;
+            const result = importScanAsLayer(next, parseNmapXml(text, file.name));
             next = result.doc;
             layerId = result.layerId;
             added += result.added;
@@ -612,7 +631,11 @@ function Canvas() {
           }
         }
         if (added === 0) {
-          notify('Those files are not nmap XML scans.');
+          notify(
+            designFile
+              ? 'A design file replaces the whole diagram – open it from Import / Open → Open design file.'
+              : 'Those files are not nmap XML scans.',
+          );
           setImporting(false);
           return;
         }
@@ -633,13 +656,11 @@ function Canvas() {
       }
       try {
         const text = await file.text();
-        if (!file.name.toLowerCase().endsWith('.json')) {
-          const scan = parseNmapXml(text, file.name);
-          setImportPreview({ fileName: file.name, scan, mode });
-          setImporting(false);
-          return;
+        if (looksLikeJson(text)) {
+          handleText(text, file.name, mode);
+        } else {
+          setImportPreview({ fileName: file.name, scan: parseNmapXml(text, file.name), mode });
         }
-        handleText(text, file.name, mode);
       } catch (error) {
         notify(`Could not read ${file.name}: ${(error as Error).message}`);
       } finally {
@@ -658,6 +679,29 @@ function Canvas() {
     handleScan(importPreview.scan, importPreview.mode);
     setImportPreview(null);
   }, [handleScan, importPreview]);
+
+  const confirmDesign = useCallback(
+    (applyRisk: boolean) => {
+      if (!designPreview) return;
+      const next: DiagramDoc =
+        applyRisk && designPreview.design.risk
+          ? { ...designPreview.doc, risk: designPreview.design.risk.policy }
+          : designPreview.doc;
+      const { fileName } = designPreview;
+      setDesignPreview(null);
+      if (doc) {
+        history.commit(next);
+        setSelection({ nodes: [], edges: [] });
+        setQuery('');
+        setActiveLayerId(next.layers[0]?.id ?? MAIN_LAYER);
+        notify(`${fileName} opened – undo restores the previous diagram`);
+        fitSoon();
+      } else {
+        loadDoc(next, `${fileName} opened`);
+      }
+    },
+    [designPreview, doc, fitSoon, history, loadDoc, notify],
+  );
 
   const dismissOnboarding = useCallback(() => {
     window.localStorage.setItem(ONBOARDING_KEY, '1');
@@ -692,8 +736,18 @@ function Canvas() {
         loadDoc(emptyDoc(), 'Blank diagram ready – use the dock to add nodes');
         return;
       }
-      const { doc: next, id } = createNode(doc, kind, position, effectiveLayerId, sectionId);
+      const intoSection = kind === 'host' ? sectionId : null;
+      const { doc: next, id } = createNode(
+        doc,
+        kind,
+        intoSection ? position : freeSpot(doc, position),
+        effectiveLayerId,
+        intoSection,
+      );
       history.commit(next);
+      // A node added into a section leaves the section selected, so the dock can
+      // drop several hosts in a row without re-selecting it.
+      if (next.nodes.find((node) => node.id === id)?.parentId) return;
       setSelection({ nodes: [id], edges: [] });
       setEditingNote(kind === 'note' ? id : null);
       if (kind === 'note') focusNoteInput(id);
@@ -1247,11 +1301,20 @@ function Canvas() {
     }
   }, [doc, notify, riskPolicy]);
 
-  const saveWorkspace = useCallback(() => {
+  /**
+   * The design file is the whole document, never the canvas scope: opening it
+   * elsewhere has to reproduce the diagram, not what is visible right now.
+   */
+  const exportDesign = useCallback(() => {
     if (!doc) return;
-    download(`${baseName(doc.fileName)}.nmap2flowchart.json`, JSON.stringify({ version: 2, doc }, null, 2), 'application/json');
-    notify('Diagram saved');
-  }, [doc, notify]);
+    const file = buildDesignFile(doc, { policy: riskPolicy, scope: riskScope });
+    download(`${baseName(doc.fileName)}${DESIGN_EXTENSION}`, JSON.stringify(file, null, 2), 'application/json');
+    notify(
+      file.risk
+        ? `Design exported · ${file.risk.policy.levels.length} risk levels from ${RISK_SCOPE_LABEL[riskScope]} included`
+        : 'Design exported – reopen it here or in another instance',
+    );
+  }, [doc, notify, riskPolicy, riskScope]);
 
   const exportRiskReport = useCallback(
     (format: 'csv' | 'json', summary: RiskSummary, scope: RiskReportScope, scopeNote: string) => {
@@ -1279,11 +1342,10 @@ function Canvas() {
     [doc, notify, riskScope],
   );
 
-  const openWorkspace = useCallback(() => {
+  const openDesign = useCallback(() => {
     importMode.current = 'replace';
     fileInput.current?.click();
   }, []);
-
   const resetLayout = useCallback(() => {
     if (!doc) return;
     const fresh = createDocFromScan({
@@ -1408,6 +1470,13 @@ function Canvas() {
   );
 
   const counts = useMemo(() => (doc ? countNodesByLayer(doc) : new Map<string, number>()), [doc]);
+
+  /** The selected section, if exactly one is selected – the dock adds hosts into it. */
+  const dockSection = useMemo(() => {
+    if (!doc || selection.nodes.length !== 1) return undefined;
+    const node = doc.nodes.find((item) => item.id === selection.nodes[0]);
+    return node?.kind === 'section' ? node : undefined;
+  }, [doc, selection.nodes]);
 
   const stats = useMemo(() => {
     if (!doc) return null;
@@ -1617,10 +1686,10 @@ function Canvas() {
                     role="menuitem"
                     onClick={() => {
                       closeMenus();
-                      openWorkspace();
+                      openDesign();
                     }}
                   >
-                    Open saved workspace…
+                    Open design file (.json)…
                   </button>
                   <div className="menu__sep" />
                   <button
@@ -1637,7 +1706,13 @@ function Canvas() {
               </>
             )}
           </div>
-          <button type="button" className="btn btn--ghost workspace-save" disabled={!doc} onClick={saveWorkspace}>
+          <button
+            type="button"
+            className="btn btn--ghost workspace-save"
+            disabled={!doc}
+            title="Save the diagram as a file"
+            onClick={exportDesign}
+          >
             Save
           </button>
           {focusName && (
@@ -1844,10 +1919,10 @@ function Canvas() {
                     disabled={!doc}
                     onClick={() => {
                       closeMenus();
-                      saveWorkspace();
+                      exportDesign();
                     }}
                   >
-                    Save diagram
+                    Export design file (.json)
                   </button>
                   <button
                     type="button"
@@ -1938,6 +2013,11 @@ function Canvas() {
                 <div className="menu-backdrop" onClick={() => setExportMenu(false)} />
                 <div className="menu export-menu" role="menu">
                   <p className="menu__note">{exportScope}</p>
+                  <div className="menu__sep" />
+                  <button type="button" role="menuitem" onClick={() => { setExportMenu(false); exportDesign(); }}>
+                    Design file (.json)
+                  </button>
+                  <div className="menu__sep" />
                   <button type="button" role="menuitem" onClick={() => { setExportMenu(false); exportMermaid(); }}>
                     Mermaid diagram
                   </button>
@@ -1961,7 +2041,7 @@ function Canvas() {
           <input
             ref={fileInput}
             type="file"
-            accept=".xml,.nmap,.json,application/xml"
+            accept=".xml,.nmap,.json,application/json,application/xml,text/xml"
             multiple
             hidden
             onChange={(event) => {
@@ -2006,7 +2086,7 @@ function Canvas() {
         )}
 
         <div
-          className="canvas"
+          className={`canvas${narrowCanvas ? ' canvas--narrow' : ''}`}
           ref={canvasRef}
           onDoubleClick={handleCanvasDoubleClick}
           onClickCapture={(event) => {
@@ -2262,15 +2342,17 @@ function Canvas() {
           >
             <Background variant={BackgroundVariant.Dots} gap={24} size={1.5} color="#222b38" />
             <Controls showInteractive={false} position="bottom-left" />
-            <MiniMap
-              pannable
-              zoomable
-              position="bottom-right"
-              style={{ width: 176, height: 116 }}
-              nodeColor="#2f3d52"
-              nodeStrokeColor="#3d4d66"
-              maskColor="rgba(6,9,14,0.78)"
-            />
+            {!narrowCanvas && (
+              <MiniMap
+                pannable
+                zoomable
+                position="bottom-right"
+                style={{ width: 176, height: 116 }}
+                nodeColor="#2f3d52"
+                nodeStrokeColor="#3d4d66"
+                maskColor="rgba(6,9,14,0.78)"
+              />
+            )}
           </ReactFlow>
 
           {marquee && (
@@ -2302,7 +2384,7 @@ function Canvas() {
             </div>
           )}
 
-          {doc && (selection.nodes.length > 0 || selection.edges.length > 0) && (
+          {doc && (
             <div className="canvas-dock">
               <span className="canvas-dock__label">Add</span>
               {(['host', 'hop', 'section', 'note'] as const).map((kind) => (
@@ -2310,6 +2392,11 @@ function Canvas() {
                   key={kind}
                   type="button"
                   className="dock-btn"
+                  title={
+                    kind === 'host' && dockSection
+                      ? `Add a host inside ${nodeTitle(dockSection)}`
+                      : `Add ${kind === 'hop' ? 'a hop' : kind === 'section' ? 'a section' : kind === 'note' ? 'a note' : 'a host'}`
+                  }
                   onClick={(event) => {
                     event.currentTarget.blur();
                     handleAddNode(kind);
@@ -2543,6 +2630,15 @@ function Canvas() {
             </div>
           </section>
         </div>
+      )}
+
+      {designPreview && (
+        <DesignOpenDialog
+          preview={designPreview}
+          hasDoc={Boolean(doc)}
+          onCancel={() => setDesignPreview(null)}
+          onOpen={confirmDesign}
+        />
       )}
 
       <AccountDialog
