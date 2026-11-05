@@ -19,6 +19,12 @@ export type AccountUser = {
   createdAt: number;
 };
 
+export type ProjectShare = {
+  token: string;
+  mode: 'edit' | 'view';
+  since: number;
+};
+
 export type ProjectSummary = {
   id: string;
   name: string;
@@ -26,6 +32,10 @@ export type ProjectSummary = {
   edgeCount: number;
   createdAt: number;
   updatedAt: number;
+  /** Bumped on every save; share links write against it. */
+  revision?: number;
+  /** The public link, once the owner publishes the project. */
+  share?: ProjectShare | null;
 };
 
 export type ProjectDetail = ProjectSummary & { doc: DiagramDoc };

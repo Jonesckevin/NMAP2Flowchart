@@ -36,6 +36,8 @@ type LayerPanelProps = {
   onRecolor: (id: string, color: string) => void;
   onDelete: (id: string, mode: 'keep' | 'all') => void;
   onMove: (id: string, delta: -1 | 1) => void;
+  /** A view-only share link: only selecting and focusing stay interactive. */
+  readOnly?: boolean;
   panelRef?: React.Ref<HTMLElement>;
 };
 
@@ -54,6 +56,7 @@ export function LayerPanel({
   onRecolor,
   onDelete,
   onMove,
+  readOnly = false,
   panelRef,
 }: LayerPanelProps) {
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -132,9 +135,11 @@ export function LayerPanel({
       />
       <header className="layer-panel__head">
         <span>Layers</span>
-        <button type="button" className="icon-button" title="New top-level layer" data-tooltip="New top-level layer" aria-label="New top-level layer" onClick={() => onAdd(null)}>
-          +
-        </button>
+        {!readOnly && (
+          <button type="button" className="icon-button" title="New top-level layer" data-tooltip="New top-level layer" aria-label="New top-level layer" onClick={() => onAdd(null)}>
+            +
+          </button>
+        )}
       </header>
 
       <div className="layer-panel__list">
@@ -198,7 +203,8 @@ export function LayerPanel({
                 className="layer-row__eye"
                 title={layer.visible ? 'Hide layer' : 'Show layer'}
                 aria-label={layer.visible ? 'Hide layer' : 'Show layer'}
-                data-tooltip={layer.visible ? 'Hide layer' : 'Show layer'}
+                data-tooltip={readOnly ? undefined : layer.visible ? 'Hide layer' : 'Show layer'}
+                disabled={readOnly}
                 onClick={(event) => {
                   event.stopPropagation();
                   onToggleVisible(layer.id);
@@ -210,10 +216,11 @@ export function LayerPanel({
               <button
                 type="button"
                 className="layer-row__swatch"
-                title="Cycle colour"
+                title={readOnly ? 'Layer colour' : 'Cycle colour'}
                 aria-label="Cycle layer colour"
-                data-tooltip="Cycle colour"
+                data-tooltip={readOnly ? undefined : 'Cycle colour'}
                 style={{ background: layer.color }}
+                disabled={readOnly}
                 onClick={(event) => {
                   event.stopPropagation();
                   const index = LAYER_COLORS.indexOf(layer.color);
@@ -239,45 +246,50 @@ export function LayerPanel({
                 <span
                   className="layer-row__name"
                   onDoubleClick={(event) => {
+                    if (readOnly) return;
                     event.stopPropagation();
                     setDraft(layer.name);
                     setRenaming(layer.id);
                   }}
-                  title="Double-click to rename"
+                  title={readOnly ? layer.name : 'Double-click to rename'}
                 >
                   {layer.name}
                 </span>
               )}
               <span className="layer-row__count">{count}</span>
               <div className="layer-row__actions">
-                <button
-                  type="button"
-                  className="layer-row__action layer-row__action--shift"
-                  title="Move layer up (draws over the layers below)"
-                  aria-label="Move layer up"
-                  data-tooltip="Move layer up"
-                  disabled={!canMoveUp}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onMove(layer.id, -1);
-                  }}
-                >
-                  ▴
-                </button>
-                <button
-                  type="button"
-                  className="layer-row__action layer-row__action--shift"
-                  title="Move layer down (draws under the layers above)"
-                  aria-label="Move layer down"
-                  data-tooltip="Move layer down"
-                  disabled={!canMoveDown}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onMove(layer.id, 1);
-                  }}
-                >
-                  ▾
-                </button>
+                {!readOnly && (
+                  <>
+                    <button
+                      type="button"
+                      className="layer-row__action layer-row__action--shift"
+                      title="Move layer up (draws over the layers below)"
+                      aria-label="Move layer up"
+                      data-tooltip="Move layer up"
+                      disabled={!canMoveUp}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onMove(layer.id, -1);
+                      }}
+                    >
+                      ▴
+                    </button>
+                    <button
+                      type="button"
+                      className="layer-row__action layer-row__action--shift"
+                      title="Move layer down (draws under the layers above)"
+                      aria-label="Move layer down"
+                      data-tooltip="Move layer down"
+                      disabled={!canMoveDown}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onMove(layer.id, 1);
+                      }}
+                    >
+                      ▾
+                    </button>
+                  </>
+                )}
                 <button
                   type="button"
                   className={`layer-row__action${isFocused ? ' is-on' : ''}`}
@@ -291,33 +303,37 @@ export function LayerPanel({
                 >
                   ◎
                 </button>
-                <button
-                  type="button"
-                  className="layer-row__action"
-                  title="New sublayer"
-                  aria-label={`Add sublayer to ${layer.name}`}
-                  data-tooltip="New sublayer"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onAdd(layer.id);
-                  }}
-                >
-                  +
-                </button>
-                <button
-                  type="button"
-                  className="layer-row__action"
-                  title="Delete layer"
-                  aria-label={`Delete layer ${layer.name}`}
-                  data-tooltip="Delete layer"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    if (count === 0) onDelete(layer.id, 'keep');
-                    else setConfirming(layer.id);
-                  }}
-                >
-                  ×
-                </button>
+                {!readOnly && (
+                  <>
+                    <button
+                      type="button"
+                      className="layer-row__action"
+                      title="New sublayer"
+                      aria-label={`Add sublayer to ${layer.name}`}
+                      data-tooltip="New sublayer"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onAdd(layer.id);
+                      }}
+                    >
+                      +
+                    </button>
+                    <button
+                      type="button"
+                      className="layer-row__action"
+                      title="Delete layer"
+                      aria-label={`Delete layer ${layer.name}`}
+                      data-tooltip="Delete layer"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        if (count === 0) onDelete(layer.id, 'keep');
+                        else setConfirming(layer.id);
+                      }}
+                    >
+                      ×
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           );
@@ -325,11 +341,13 @@ export function LayerPanel({
       </div>
 
       <p className="layer-panel__hint">
-        {dropLayerId
-          ? 'Release to move the selection onto this layer.'
-          : dragging
-            ? 'Drop the node on a layer to move it there.'
-            : 'Drag nodes from the canvas onto a layer to move them, or click a layer to make it active.'}
+        {readOnly
+          ? 'This link is view only – layers can be inspected, not edited.'
+          : dropLayerId
+            ? 'Release to move the selection onto this layer.'
+            : dragging
+              ? 'Drop the node on a layer to move it there.'
+              : 'Drag nodes from the canvas onto a layer to move them, or click a layer to make it active.'}
       </p>
 
       <footer className="layer-panel__foot">

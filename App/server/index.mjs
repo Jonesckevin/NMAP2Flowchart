@@ -1,43 +1,58 @@
+import path from 'node:path';
+
 import { appDatabasePath, loadConfig } from './config.mjs';
+import { loggerFromConfig } from './log.mjs';
 import { openStore } from './store.mjs';
+import { createSharedHub, createSharedStore } from './shared.mjs';
 import { createApi } from './app.mjs';
 
 const config = loadConfig();
+const logger = loggerFromConfig(config);
+const log = logger.child('api');
 const dbPath = config.dbPath || appDatabasePath(config.dataDir);
 const store = config.authEnabled ? openStore(dbPath) : null;
-const server = createApi({ config, store });
+config.sharedFile = config.sharedFile || path.join(config.dataDir, 'shared.json');
+const hub = createSharedHub({ logger: log });
+const shared = config.sharedEnabled
+  ? { store: createSharedStore({ filePath: config.sharedFile, logger: log }), hub }
+  : null;
+const server = createApi({ config, store, shared, hub, logger });
 
 if (store) {
   const purged = store.purgeExpired();
   if (purged.guests > 0 || purged.sessions > 0) {
-    console.log(`accounts: purged ${purged.sessions} expired sessions and ${purged.guests} expired guests`);
+    log.info('purged expired sessions', { sessions: purged.sessions, guests: purged.guests });
   }
-  const timer = setInterval(
-    () => {
-      const result = store.purgeExpired();
-      if (result.guests > 0) console.log(`accounts: purged ${result.guests} expired guests`);
-    },
-    config.cleanupIntervalSeconds * 1000,
-  );
+  const timer = setInterval(() => {
+    const result = store.purgeExpired();
+    if (result.guests > 0 || result.sessions > 0) {
+      log.debug('purged expired sessions', { sessions: result.sessions, guests: result.guests });
+    }
+  }, config.cleanupIntervalSeconds * 1000);
   timer.unref();
 }
 
 server.listen(config.port, config.host, () => {
-  console.log(
-    `accounts API listening on ${config.host}:${config.port} (auth ${config.authEnabled ? 'ENABLED' : 'disabled'})`,
-  );
+  log.info('listening', {
+    host: config.host,
+    port: config.port,
+    auth: config.authEnabled ? 'enabled' : 'disabled',
+    shared: config.sharedEnabled ? 'enabled' : 'disabled',
+    level: config.logLevel,
+  });
+  if (shared) log.info('shared diagram', { file: config.sharedFile });
   if (config.authEnabled) {
-    console.log(`accounts: database ${dbPath}`);
-    console.log(
-      `accounts: registration ${config.registrationEnabled ? 'on' : 'off'}, guest login ${
-        config.guestLoginEnabled ? 'on' : 'off'
-      }`,
-    );
+    log.info('accounts', {
+      database: dbPath,
+      registration: config.registrationEnabled ? 'on' : 'off',
+      guestLogin: config.guestLoginEnabled ? 'on' : 'off',
+    });
   }
 });
 
 function shutdown(signal) {
-  console.log(`accounts: ${signal} received, shutting down`);
+  log.info('shutting down', { signal });
+  hub.close();
   server.close(() => {
     store?.close();
     process.exit(0);

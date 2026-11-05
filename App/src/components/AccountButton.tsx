@@ -19,9 +19,10 @@ export function AccountButton({ account, onOpen }: { account: AccountController;
       className={`account-chip account-chip--${tone}`}
       onClick={onOpen}
       aria-haspopup="dialog"
+      aria-label={signedIn ? `Account and projects – ${account.user!.username}` : 'Sign in or continue as a guest'}
       title={
         signedIn
-          ? `${account.user!.username}${project ? ` · ${project}` : ' · no project open'}`
+          ? `${account.user!.username} · ${project ?? 'no project open'} – open the project list`
           : 'Sign in or continue as a guest'
       }
     >
@@ -41,6 +42,7 @@ export function AccountButton({ account, onOpen }: { account: AccountController;
       </svg>
       <span className="account-chip__name">{signedIn ? account.user!.username : 'Sign in'}</span>
       {signedIn && project && <span className="account-chip__project">{project}</span>}
+      {signedIn && <span className="account-chip__caret" aria-hidden="true">▾</span>}
       <span className="account-chip__dot" aria-hidden="true" />
     </button>
   );

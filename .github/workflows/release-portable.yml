@@ -2,6 +2,7 @@ name: Portable bundle release
 
 # Publishes three separate downloads on the rolling `portable-latest` release:
 #   app.cjs (+ app.cjs.sha256)              the whole app in one file, run with `node app.cjs`
+#   shared.cjs (+ shared.cjs.sha256)        the same file with shared mode on by default
 #   nmap2flowchart-portable-<platform>.zip  signed node + app.cjs + launcher, for machines without Node.js
 #   nmap2drawio-plugin.zip                  the standalone draw.io import plugin
 # Every run rebuilds all three so the release never mixes a fresh app.cjs with stale zips.
@@ -63,6 +64,9 @@ jobs:
       - name: Build app.cjs
         run: npm run standalone:bundle
 
+      - name: Build shared.cjs
+        run: npm run standalone:shared -- --skip-frontend
+
       - name: Build portable folders
         if: github.event_name == 'push' || inputs.portable_folders
         run: npm run standalone:portable -- --skip-frontend
@@ -75,6 +79,7 @@ jobs:
 
           # 1. The single file.
           cp ../release/app.cjs ../release/app.cjs.sha256 "$assets/"
+          cp ../release/shared.cjs ../release/shared.cjs.sha256 "$assets/"
 
           # 2. One zip per platform, with the folder at the root of the archive.
           for platform in win-x64 linux-x64; do
@@ -117,6 +122,7 @@ jobs:
           | Asset | What it is |
           | --- | --- |
           | `app.cjs` (+ `app.cjs.sha256`) | The whole app in a single file. Needs Node.js 24 or newer. |
+          | `shared.cjs` (+ `shared.cjs.sha256`) | The same file with shared mode on by default: one diagram that everyone who opens the server sees and edits live. `node shared.cjs --port 8080`. |
           | `nmap2flowchart-portable-win-x64.zip` / `nmap2flowchart-portable-linux-x64.zip` | The same app with an unmodified, signed `node` runtime and a `start.cmd` / `start.sh` launcher – for machines without Node.js, including Windows Sandbox and Windows 11 with Smart App Control. |
           | `nmap2drawio-plugin.zip` | The standalone draw.io import plugin: drop an `nmap -oX` scan straight onto a draw.io layer. No app install needed. |
 
@@ -124,12 +130,14 @@ jobs:
 
           ```bash
           node app.cjs          # serves http://127.0.0.1:8080/ and opens your browser
+          node shared.cjs       # same, but one diagram is shared with everyone who connects
           ```
 
           Needs **Node.js 24 or newer** – nothing to install, no npm packages, no network access.
 
           Useful flags: `--port <n>` (a busy port moves on, `0` picks any), `--host <addr>`,
           `--no-open`, `--auth` (local accounts and project autosave in SQLite),
+          `--shared` (one diagram for everyone, live edits and shared pointers),
           `--data-dir <dir>`, `--help`.
 
           Or unzip a portable folder and use its launcher:
@@ -203,7 +211,7 @@ jobs:
           repo="$GITHUB_REPOSITORY"
           published=$(gh release view "$RELEASE_TAG" --repo "$repo" --json assets --jq '.assets[].name')
           echo "$published"
-          required="app.cjs app.cjs.sha256 nmap2drawio-plugin.zip"
+          required="app.cjs app.cjs.sha256 shared.cjs shared.cjs.sha256 nmap2drawio-plugin.zip"
           if [ "${{ github.event_name }}" = "push" ] || [ "${{ inputs.portable_folders }}" = "true" ]; then
             required="$required nmap2flowchart-portable-win-x64.zip nmap2flowchart-portable-linux-x64.zip"
           fi

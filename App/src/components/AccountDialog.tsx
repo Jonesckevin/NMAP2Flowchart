@@ -10,6 +10,8 @@ type AccountDialogProps = {
   onClose: () => void;
   doc: DiagramDoc | null;
   onOpenProject: (project: ProjectDetail) => void;
+  /** Opens the share dialog for a project without switching the editor to it. */
+  onShareProject: (project: ProjectSummary) => void;
 };
 
 function projectNameFromDoc(doc: DiagramDoc | null): string {
@@ -166,6 +168,7 @@ function ProjectRow({
   active,
   busy,
   onOpen,
+  onShare,
   onRename,
   onDelete,
 }: {
@@ -173,6 +176,7 @@ function ProjectRow({
   active: boolean;
   busy: boolean;
   onOpen: () => void;
+  onShare: () => void;
   onRename: (name: string) => Promise<boolean>;
   onDelete: () => Promise<boolean>;
 }) {
@@ -192,6 +196,31 @@ function ProjectRow({
         </button>
         <div className="project-row__actions">
           {active && <span className="project-row__badge">open</span>}
+          {project.share && (
+            <span className="project-row__badge project-row__badge--share" title="This project has a share link">
+              {project.share.mode === 'view' ? 'link · view' : 'link · live'}
+            </span>
+          )}
+          {!active && (
+            <button
+              type="button"
+              className="project-row__action project-row__action--open"
+              disabled={busy}
+              title={`Open “${project.name}”`}
+              onClick={onOpen}
+            >
+              Open
+            </button>
+          )}
+          <button
+            type="button"
+            className="project-row__action"
+            disabled={busy}
+            title={`Share “${project.name}” with a link`}
+            onClick={onShare}
+          >
+            Share
+          </button>
           <button
             type="button"
             className="project-row__action"
@@ -279,11 +308,13 @@ function ProjectsView({
   account,
   doc,
   onOpenProject,
+  onShareProject,
   onClose,
 }: {
   account: AccountController;
   doc: DiagramDoc | null;
   onOpenProject: (project: ProjectDetail) => void;
+  onShareProject: (project: ProjectSummary) => void;
   onClose: () => void;
 }) {
   const [creating, setCreating] = useState(false);
@@ -337,7 +368,7 @@ function ProjectsView({
           <h3>Projects</h3>
           <span className="account-projects__hint">
             {account.activeProject
-              ? `Saving to “${account.activeProject.name}” as you edit.`
+              ? `Saving to “${account.activeProject.name}” as you edit – open another project below to switch.`
               : 'Open a project to keep it in sync, or save the diagram you have open now.'}
           </span>
         </div>
@@ -398,6 +429,7 @@ function ProjectsView({
               active={project.id === account.activeProjectId}
               busy={account.busy}
               onOpen={() => void open(project)}
+              onShare={() => onShareProject(project)}
               onRename={(next) => account.renameProject(project.id, next)}
               onDelete={() => account.deleteProject(project.id)}
             />
@@ -421,7 +453,7 @@ function ProjectsView({
   );
 }
 
-export function AccountDialog({ account, open, onClose, doc, onOpenProject }: AccountDialogProps) {
+export function AccountDialog({ account, open, onClose, doc, onOpenProject, onShareProject }: AccountDialogProps) {
   const dialogRef = useRef<HTMLElement>(null);
   const closeRef = useRef(onClose);
   const clearFeedback = account.clearFeedback;
@@ -502,7 +534,7 @@ export function AccountDialog({ account, open, onClose, doc, onOpenProject }: Ac
         </div>
 
         {account.user ? (
-          <ProjectsView account={account} doc={doc} onOpenProject={onOpenProject} onClose={onClose} />
+          <ProjectsView account={account} doc={doc} onOpenProject={onOpenProject} onShareProject={onShareProject} onClose={onClose} />
         ) : (
           <AuthForm account={account} onClose={onClose} />
         )}

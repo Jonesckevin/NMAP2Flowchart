@@ -13,11 +13,12 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "api": "node server/index.mjs",
-    "test:api": "node --test server/api.test.mjs server/static.test.mjs",
+    "test:api": "node --test server/api.test.mjs server/static.test.mjs server/shared.test.mjs server/share.test.mjs server/store.test.mjs server/log.test.mjs",
     "standalone": "node scripts/build-standalone.mjs",
     "standalone:all": "node scripts/build-standalone.mjs --target all",
     "standalone:portable": "node scripts/build-standalone.mjs --portable",
     "standalone:bundle": "node scripts/build-standalone.mjs --bundle-only",
+    "standalone:shared": "node scripts/build-standalone.mjs --shared",
     "standalone:smoke": "node scripts/smoke-standalone.mjs"
   },
   "dependencies": {

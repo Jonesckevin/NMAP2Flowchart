@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadRiskPolicy } from './risk.mjs';
+import { normalizeFormat, normalizeLevel } from './log.mjs';
 
 export const APP_SLUG = 'nmap2flowchart';
 export const LEGACY_APP_SLUG = 'nmap2flowio';
@@ -42,6 +43,16 @@ export function loadConfig(env = process.env) {
     // NMAP_RISK_POLICY_FILE (path). `null` means "let each browser use its
     // built-in defaults"; accounts and diagrams can still override it.
     riskPolicy: loadRiskPolicy(env),
+
+    // Shared mode: one diagram for everyone who opens this server.
+    sharedEnabled: bool(env.NMAP_SHARED, false) || bool(env.NMAP_SHARED_ENABLED, false),
+    // Where that diagram is kept. `null` means "<dataDir>/shared.json".
+    sharedFile: env.NMAP_SHARED_FILE || null,
+
+    // Container logs: stdout only, `info` by default. NMAP_LOG_LEVEL=debug adds
+    // per-request detail; NMAP_LOG_FORMAT=json emits one object per line.
+    logLevel: normalizeLevel(env.NMAP_LOG_LEVEL, 'info'),
+    logFormat: normalizeFormat(env.NMAP_LOG_FORMAT),
   };
 }
 

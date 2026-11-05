@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import http from 'node:http';
 import {
   clientIp,
@@ -20,6 +21,10 @@ import {
 } from './http.mjs';
 import { DuplicateUserError } from './store.mjs';
 import { sanitizeRiskPolicy } from './risk.mjs';
+import { serializeDoc, validateDoc } from './doc.mjs';
+import { createSharedRoutes } from './shared.mjs';
+import { createShareRoutes, shareRoomId } from './share.mjs';
+import { scopedLogger } from './log.mjs';
 
 const PROJECT_ID_RE = /^[0-9a-fA-F-]{36}$/;
 const MAX_NAME_LENGTH = 80;
@@ -40,18 +45,7 @@ function validateProjectName(value, { fallback = null } = {}) {
   return name;
 }
 
-function validateDoc(doc) {
-  requireObject(doc, 'Diagram document must be an object');
-  if (doc.version !== 2) throw new HttpError(400, 'Unsupported diagram version (expected 2)');
-  if (!Array.isArray(doc.nodes)) throw new HttpError(400, 'Diagram document is missing nodes');
-  if (!Array.isArray(doc.layers)) throw new HttpError(400, 'Diagram document is missing layers');
-  if (doc.edges !== undefined && !Array.isArray(doc.edges)) {
-    throw new HttpError(400, 'Diagram document edges must be an array');
-  }
-  return doc;
-}
-
-export function createApiHandler({ config, store, logger = console }) {
+export function createApiHandler({ config, store, shared = null, hub = null, logger = console }) {
   const loginLimiter = createRateLimiter({
     max: config.loginRateMax,
     windowSeconds: config.loginRateWindowSeconds,
@@ -63,6 +57,10 @@ export function createApiHandler({ config, store, logger = console }) {
 
   const sessionTtlMs = config.sessionTtlHours * 3600_000;
   const guestTtlMs = config.guestTtlHours * 3600_000;
+  const roomHub = hub ?? shared?.hub ?? null;
+  const handleShared = createSharedRoutes({ shared, config, logger });
+  const handleShare = store && roomHub ? createShareRoutes({ store, hub: roomHub, config, logger }) : null;
+  const log = scopedLogger(logger, 'accounts');
 
   function requireEnabled() {
     if (!config.authEnabled || !store) throw new HttpError(404, 'Accounts are disabled');
@@ -83,20 +81,8 @@ export function createApiHandler({ config, store, logger = console }) {
     return { user, token, expiresAt };
   }
 
-  function serializeDoc(doc) {
-    const docJson = JSON.stringify(doc);
-    const bytes = Buffer.byteLength(docJson);
-    if (bytes > config.maxProjectBytes) {
-      throw new HttpError(
-        413,
-        `Diagram is larger than the ${Math.round(config.maxProjectBytes / (1024 * 1024))} MB account limit`,
-      );
-    }
-    return {
-      docJson,
-      nodeCount: doc.nodes.length,
-      edgeCount: Array.isArray(doc.edges) ? doc.edges.length : 0,
-    };
+  function serializeDocForAccount(doc) {
+    return serializeDoc(doc, config.maxProjectBytes);
   }
 
   async function route(request, response, pathname) {
@@ -108,7 +94,7 @@ export function createApiHandler({ config, store, logger = console }) {
 
     if (pathname === '/api/health') {
       if (method !== 'GET') allow(['GET']);
-      sendJson(response, 200, { ok: true, authEnabled: config.authEnabled });
+      sendJson(response, 200, { ok: true, authEnabled: config.authEnabled, sharedEnabled: Boolean(shared) });
       return;
     }
 
@@ -120,11 +106,25 @@ export function createApiHandler({ config, store, logger = console }) {
         guestLoginEnabled: config.authEnabled && config.guestLoginEnabled,
         guestTtlHours: config.authEnabled ? config.guestTtlHours : 0,
         maxProjectBytes: config.maxProjectBytes,
+        // One diagram for everyone who opens this server (shared mode).
+        sharedEnabled: Boolean(shared),
         // Instance-wide risk levels (NMAP_RISK_LEVELS / NMAP_RISK_POLICY_FILE).
         // Served even with accounts off, because it only shapes the diagram.
         risk: config.riskPolicy ?? null,
         version: 1,
       });
+      return;
+    }
+
+    if (pathname === '/api/shared' || pathname.startsWith('/api/shared/')) {
+      await handleShared(request, response, pathname, method);
+      return;
+    }
+
+    if (pathname === '/api/share' || pathname.startsWith('/api/share/')) {
+      if (!handleShare) throw new HttpError(404, 'Share links need the accounts database');
+      const handled = await handleShare(request, response, pathname, method);
+      if (handled === false) throw new HttpError(404, 'Not found');
       return;
     }
 
@@ -159,7 +159,7 @@ export function createApiHandler({ config, store, logger = console }) {
         if (error instanceof DuplicateUserError) throw new HttpError(400, 'Username already exists');
         throw error;
       }
-      logger.info?.(`accounts: registered ${username}`);
+      log.info('account registered', { user: username, role: user.role, address: ip });
       sendJson(response, 201, issueSession(user));
       return;
     }
@@ -179,11 +179,12 @@ export function createApiHandler({ config, store, logger = console }) {
         (await verifyPassword(body.password, row.password_hash));
       if (!valid) {
         loginLimiter.fail(ip);
-        logger.warn?.(`accounts: failed login for ${username || '(empty)'} from ${ip}`);
+        log.warn('login failed', { user: username || '(empty)', address: ip });
         throw new HttpError(401, 'Invalid username or password');
       }
       loginLimiter.reset(ip);
       const user = store.findUserById(row.user_id);
+      log.info('login', { user: user.username, address: ip });
       sendJson(response, 200, issueSession(user));
       return;
     }
@@ -198,7 +199,7 @@ export function createApiHandler({ config, store, logger = console }) {
       }
       registerLimiter.fail(ip);
       const user = store.createGuest(Date.now(), guestTtlMs);
-      logger.info?.(`accounts: guest session ${user.username}`);
+      log.info('guest session started', { user: user.username, address: ip });
       sendJson(response, 201, issueSession(user));
       return;
     }
@@ -215,7 +216,11 @@ export function createApiHandler({ config, store, logger = console }) {
       if (method !== 'POST') allow(['POST']);
       requireEnabled();
       const token = bearerToken(request);
-      if (token) store.revokeSession(hashToken(token));
+      if (token) {
+        const session = store.sessionUser(hashToken(token));
+        store.revokeSession(hashToken(token));
+        log.info('logout', { user: session?.username ?? '(expired)' });
+      }
       sendJson(response, 200, { ok: true });
       return;
     }
@@ -279,12 +284,49 @@ export function createApiHandler({ config, store, logger = console }) {
         if (store.countProjects(user.userId) >= config.maxProjectsPerUser) {
           throw new HttpError(409, `Account project limit reached (${config.maxProjectsPerUser})`);
         }
-        const project = store.createProject(user.userId, { name, ...serializeDoc(doc) });
+        const project = store.createProject(user.userId, { name, ...serializeDocForAccount(doc) });
+        log.info('project created', { project: project.id, name: project.name, user: user.username, nodes: project.nodeCount });
         sendJson(response, 201, { project });
         return;
       }
 
       allow(['GET', 'POST']);
+    }
+
+    const shareMatch = /^\/api\/projects\/([^/]+)\/share$/.exec(pathname);
+    if (shareMatch) {
+      requireEnabled();
+      const { user } = authenticate(request);
+      const id = shareMatch[1];
+      if (!PROJECT_ID_RE.test(id)) throw new HttpError(404, 'Project not found');
+
+      if (method === 'POST') {
+        const existing = store.getProject(user.userId, id);
+        if (!existing) throw new HttpError(404, 'Project not found');
+        const body = requireObject(await readJsonBody(request, 8 * 1024), 'Request body must be an object');
+        const mode = body.mode === 'view' ? 'view' : 'edit';
+        // Changing who can edit keeps the link; `rotate` retires it and mints a new one.
+        const keep = existing.share && body.rotate !== true ? existing.share.token : null;
+        const token = keep ?? crypto.randomBytes(18).toString('base64url');
+        const project = store.setProjectShare(user.userId, id, { token, mode });
+        if (!project) throw new HttpError(404, 'Project not found');
+        if (keep === null && existing.share) roomHub?.closeRoom(shareRoomId(existing.share.token));
+        log.info('share link created', { project: id, name: project.name, mode, user: user.username, rotated: keep === null });
+        sendJson(response, 200, { project, url: `/s/${token}` });
+        return;
+      }
+
+      if (method === 'DELETE') {
+        const existing = store.getProject(user.userId, id);
+        if (!existing) throw new HttpError(404, 'Project not found');
+        const project = store.clearProjectShare(user.userId, id);
+        if (existing.share) roomHub?.closeRoom(shareRoomId(existing.share.token));
+        log.info('share link removed', { project: id, name: project.name, user: user.username });
+        sendJson(response, 200, { project });
+        return;
+      }
+
+      allow(['POST', 'DELETE']);
     }
 
     const projectMatch = /^\/api\/projects\/([^/]+)$/.exec(pathname);
@@ -315,17 +357,30 @@ export function createApiHandler({ config, store, logger = console }) {
         if (hasName) {
           project = store.renameProject(user.userId, id, validateProjectName(body.name));
           if (!project) throw new HttpError(404, 'Project not found');
+          log.info('project renamed', { project: id, name: project.name, user: user.username });
         }
         if (hasDoc) {
-          project = store.updateProjectDoc(user.userId, id, serializeDoc(validateDoc(body.doc)));
+          project = store.updateProjectDoc(user.userId, id, serializeDocForAccount(validateDoc(body.doc)));
           if (!project) throw new HttpError(404, 'Project not found');
+          // People on the share link are looking at this project; show them the edit.
+          if (project.share) {
+            roomHub?.broadcast(shareRoomId(project.share.token), 'change', {
+              revision: project.revision,
+              updatedAt: project.updatedAt,
+              doc: body.doc,
+              from: null,
+            });
+          }
         }
         sendJson(response, 200, { project });
         return;
       }
 
       if (method === 'DELETE') {
+        const existing = store.getProject(user.userId, id);
         if (!store.deleteProject(user.userId, id)) throw new HttpError(404, 'Project not found');
+        if (existing?.share) roomHub?.closeRoom(shareRoomId(existing.share.token));
+        log.info('project deleted', { project: id, name: existing?.name, user: user.username });
         sendEmpty(response, 204);
         return;
       }
@@ -338,8 +393,7 @@ export function createApiHandler({ config, store, logger = console }) {
 
   return (request, response) => {
     applySecurityHeaders(response);
-    const started = Date.now();
-    const pathname = (() => {
+    const started = Date.now();    const pathname = (() => {
       try {
         return new URL(request.url || '/', 'http://localhost').pathname.replace(/\/+$/, '') || '/';
       } catch {
@@ -357,19 +411,23 @@ export function createApiHandler({ config, store, logger = console }) {
           sendJson(response, error.status, { error: error.message });
           return;
         }
-        logger.error?.(`accounts: unhandled error for ${request.method} ${pathname}`, error);
+        log.error('unhandled error', {
+          method: request.method,
+          path: pathname,
+          error: error?.message ?? String(error),
+        });
         sendJson(response, 500, { error: 'Internal server error' });
       })
       .finally(() => {
         response.on('finish', () => {
-          if (Date.now() - started > 2000) {
-            logger.warn?.(`accounts: slow request ${request.method} ${pathname} (${Date.now() - started}ms)`);
-          }
+          const elapsed = Date.now() - started;
+          if (elapsed > 2000) log.warn('slow request', { method: request.method, path: pathname, ms: elapsed });
+          else log.debug('request', { method: request.method, path: pathname, status: response.statusCode, ms: elapsed });
         });
       });
   };
 }
 
-export function createApi({ config, store, logger = console }) {
-  return http.createServer(createApiHandler({ config, store, logger }));
+export function createApi({ config, store, shared = null, hub = null, logger = console }) {
+  return http.createServer(createApiHandler({ config, store, shared, hub, logger }));
 }

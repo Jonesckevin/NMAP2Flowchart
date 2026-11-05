@@ -39,6 +39,9 @@ export type AccountController = {
   openProject: (id: string) => Promise<ProjectDetail | null>;
   renameProject: (id: string, name: string) => Promise<boolean>;
   deleteProject: (id: string) => Promise<boolean>;
+  /** Publishes a project as a link and returns its path, or null on failure. */
+  shareProject: (id: string, mode: 'edit' | 'view', rotate?: boolean) => Promise<string | null>;
+  stopSharing: (id: string) => Promise<boolean>;
   saveActiveProject: (doc: DiagramDoc, projectId?: string) => void;
   /** Stores the risk levels account-wide. Returns false when not signed in. */
   saveRiskPolicy: (policy: RiskPolicy | null) => Promise<boolean>;
@@ -408,6 +411,49 @@ export function useAccount(): AccountController {
     setNotice(null);
   }, []);
 
+  /** Publishes a project as a share link (or rotates it) and keeps the row in step. */
+  const shareProject = useCallback(
+    async (id: string, mode: 'edit' | 'view', rotate = false) => {
+      const token = tokenRef.current;
+      if (!token) return null;
+      setBusy(true);
+      setError(null);
+      try {
+        const { project, url } = await api.createShare(token, id, mode, rotate);
+        setProjects((list) => list.map((item) => (item.id === id ? project : item)));
+        setNotice(mode === 'view' ? 'Share link is view-only' : 'Share link is live');
+        return url;
+      } catch (cause) {
+        fail(cause);
+        return null;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [fail],
+  );
+
+  const stopSharing = useCallback(
+    async (id: string) => {
+      const token = tokenRef.current;
+      if (!token) return false;
+      setBusy(true);
+      setError(null);
+      try {
+        const { project } = await api.disableShare(token, id);
+        setProjects((list) => list.map((item) => (item.id === id ? project : item)));
+        setNotice('Share link switched off');
+        return true;
+      } catch (cause) {
+        fail(cause);
+        return false;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [fail],
+  );
+
   const activeProject = useMemo(
     () => projects.find((project) => project.id === activeProjectId) ?? null,
     [projects, activeProjectId],
@@ -436,6 +482,8 @@ export function useAccount(): AccountController {
     openProject,
     renameProject,
     deleteProject,
+    shareProject,
+    stopSharing,
     saveActiveProject,
     saveRiskPolicy,
   };

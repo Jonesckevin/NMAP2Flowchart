@@ -153,6 +153,16 @@ export const api = {
   deleteProject: (token: string, id: string) =>
     request<{ ok: boolean }>(`/projects/${id}`, { method: 'DELETE', token }),
 
+  createShare: (token: string, id: string, mode: 'edit' | 'view', rotate = false) =>
+    request<{ project: ProjectSummary; url: string }>(`/projects/${id}/share`, {
+      method: 'POST',
+      token,
+      body: { mode, rotate },
+    }),
+
+  disableShare: (token: string, id: string) =>
+    request<{ project: ProjectSummary }>(`/projects/${id}/share`, { method: 'DELETE', token }),
+
   getPreferences: (token: string) => request<{ risk: RiskPolicy | null }>('/preferences', { token }),
 
   savePreferences: (token: string, risk: RiskPolicy | null) =>

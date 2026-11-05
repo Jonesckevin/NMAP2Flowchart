@@ -143,14 +143,22 @@ const TIP_GROUPS: { title: string; tips: Tip[] }[] = [
         what: 'Export a text diagram you can paste into a wiki or open in draw.io.',
       },
       {
+        keys: 'Live chip (shared server)',
+        what: 'Only on a server started with --shared: the chip counts the browsers on the diagram, lists who they are with their address, and lets you rename yourself. Everyone edits the same drawing – changes and pointers show up on the other screens as you go.',
+      },
+      {
+        keys: 'Share (account project)',
+        what: 'Publish a project as a link – from the Share button, from ⋯ → Share “project”…, or from the Share action on a row in the project list. “Can edit” makes it a live room – everyone on the link sees your changes and you see theirs, with pointers and presence. “View only” gives the same room with the editor locked: no add buttons, no layer edits, exports only. New link retires the old one; Stop sharing switches it off.',
+      },
+      {
         keys: 'Account chip → Projects',
-        what: 'When the server enables accounts, sign in or continue as a guest to save diagrams to the account and switch between projects. The chip dot shows the save state; without accounts everything stays in this browser.',
+        what: 'When the server enables accounts, sign in or continue as a guest to save diagrams to the account. The chip shows the open project – click it for the project list, where Open switches the editor to another project, Share publishes a row with a link, and Save as new project stores the diagram you have open. The dot shows the save state; without accounts everything stays in this browser.',
       },
     ],
   },
 ];
 
-export function HelpButton() {
+export function HelpButton({ shared = false }: { shared?: boolean }) {
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -269,10 +277,18 @@ export function HelpButton() {
                 })}
               </div>
               <p className="help-panel__foot">
-                Everything is stored in this browser tab. Save a <code>.nmap2flowchart.json</code> design file to
-                keep a copy or open it in another instance.
-              </p>
-            </div>
+                {shared ? (
+                  <>
+                    This server keeps the diagram and shares it with everyone connected. Save a{' '}
+                    <code>.nmap2flowchart.json</code> design file to keep a copy.
+                  </>
+                ) : (
+                  <>
+                    Everything is stored in this browser tab. Save a <code>.nmap2flowchart.json</code> design
+                    file to keep a copy or open it in another instance.
+                  </>
+                )}
+              </p>            </div>
           </div>,
           document.body,
         )}

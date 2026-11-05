@@ -40,6 +40,7 @@ function parseCli(argv) {
       'skip-frontend': { type: 'boolean' },
       portable: { type: 'boolean' },
       'bundle-only': { type: 'boolean' },
+      shared: { type: 'boolean' },
       'no-smoke': { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
     },
@@ -55,6 +56,8 @@ function parseCli(argv) {
                         of single executables – use this when Smart App Control objects
                         to the injected binary
       --bundle-only     Write just app.cjs (+ .sha256): run it with \`node app.cjs\`
+      --shared          Build shared.cjs instead: one diagram for everyone who opens
+                        the server, live edits and shared pointers (implies --bundle-only)
       --no-smoke        Skip the post-build HTTP smoke test of the host build`);
     process.exit(0);
   }
@@ -137,7 +140,7 @@ function writeEmbeddedModule({ buildDir, files, pkg }) {
   return target;
 }
 
-async function bundleServer({ buildDir, embeddedModule }) {
+async function bundleServer({ buildDir, embeddedModule, sharedDefault = false }) {
   const outfile = path.join(buildDir, 'standalone.cjs');
   await esbuild({
     entryPoints: [path.join(APP_DIR, 'server', 'standalone.mjs')],
@@ -149,6 +152,8 @@ async function bundleServer({ buildDir, embeddedModule }) {
     alias: { '#app-bundle': embeddedModule },
     legalComments: 'none',
     logLevel: 'warning',
+    // The shared bundle starts in shared mode; the normal one does not.
+    define: sharedDefault ? { 'globalThis.__N2F_SHARED_DEFAULT__': 'true' } : {},
   });
   const size = fs.statSync(outfile).size;
   log(`bundled the server (${(size / 1024 / 1024).toFixed(1)} MiB)`);
@@ -383,18 +388,26 @@ async function main() {
 
   const files = collectFiles(path.join(APP_DIR, 'dist'));
   const embeddedModule = writeEmbeddedModule({ buildDir, files, pkg });
-  const bundlePath = await bundleServer({ buildDir, embeddedModule });
+  const shared = values.shared === true;
+  const bundlePath = await bundleServer({ buildDir, embeddedModule, sharedDefault: shared });
 
-  if (values['bundle-only'] === true) {
+  if (values['bundle-only'] === true || shared) {
     fs.mkdirSync(outDir, { recursive: true });
-    const appBundle = path.join(outDir, 'app.cjs');
+    const name = shared ? 'shared.cjs' : 'app.cjs';
+    const appBundle = path.join(outDir, name);
     fs.copyFileSync(bundlePath, appBundle);
     const digest = createHash('sha256').update(fs.readFileSync(appBundle)).digest('hex');
-    fs.writeFileSync(`${appBundle}.sha256`, `${digest}  app.cjs\n`);
+    fs.writeFileSync(`${appBundle}.sha256`, `${digest}  ${name}\n`);
     copyRiskExample(outDir);
     log(`wrote ${path.relative(REPO_DIR, appBundle)} (${(fs.statSync(appBundle).size / 1024 / 1024).toFixed(1)} MiB)`);
-    if (values['no-smoke'] !== true) smokeTest(process.execPath, ['--script', appBundle]);
-    console.log(`\nDone. Run it with: node ${path.relative(REPO_DIR, appBundle)}`);
+    if (values['no-smoke'] !== true) {
+      smokeTest(process.execPath, ['--script', appBundle]);
+    }
+    console.log(
+      `\nDone. Run it with: node ${path.relative(REPO_DIR, appBundle)}${
+        shared ? '   (add --port 8080 --host 0.0.0.0 for a shared server)' : ''
+      }`,
+    );
     return;
   }
 

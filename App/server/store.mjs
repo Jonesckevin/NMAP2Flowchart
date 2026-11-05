@@ -23,7 +23,6 @@ const SCHEMA = `
     expires_at   INTEGER NOT NULL,
     last_seen_at INTEGER NOT NULL
   );
-  CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id);
 
   CREATE TABLE IF NOT EXISTS projects (
     id          TEXT PRIMARY KEY,
@@ -33,15 +32,29 @@ const SCHEMA = `
     node_count  INTEGER NOT NULL DEFAULT 0,
     edge_count  INTEGER NOT NULL DEFAULT 0,
     created_at  INTEGER NOT NULL,
-    updated_at  INTEGER NOT NULL
+    updated_at  INTEGER NOT NULL,
+    revision    INTEGER NOT NULL DEFAULT 1,
+    share_token TEXT,
+    share_mode  TEXT,
+    share_at    INTEGER
   );
-  CREATE INDEX IF NOT EXISTS projects_user ON projects(user_id, updated_at DESC);
 
   CREATE TABLE IF NOT EXISTS preferences (
     user_id    TEXT PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
     risk_json  TEXT,
     updated_at INTEGER NOT NULL
   );
+`;
+
+/**
+ * Indexes are created after the column migrations: a database from an older
+ * release has the tables but not the columns they cover, and `CREATE INDEX` on
+ * a missing column aborts the whole schema run.
+ */
+const INDEXES = `
+  CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id);
+  CREATE INDEX IF NOT EXISTS projects_user ON projects(user_id, updated_at DESC);
+  CREATE UNIQUE INDEX IF NOT EXISTS projects_share ON projects(share_token);
 `;
 
 export class DuplicateUserError extends Error {
@@ -71,7 +84,27 @@ function projectSummary(row) {
     edgeCount: row.edge_count,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    revision: row.revision ?? 1,
+    share: row.share_token
+      ? { token: row.share_token, mode: row.share_mode === 'view' ? 'view' : 'edit', since: row.share_at ?? 0 }
+      : null,
   };
+}
+
+/** Columns added after the first release; adopted on an existing database. */
+const PROJECT_COLUMNS = [
+  ['revision', 'INTEGER NOT NULL DEFAULT 1'],
+  ['share_token', 'TEXT'],
+  ['share_mode', 'TEXT'],
+  ['share_at', 'INTEGER'],
+];
+
+function migrateProjectColumns(db) {
+  const existing = new Set(db.prepare('PRAGMA table_info(projects)').all().map((column) => column.name));
+  for (const [name, type] of PROJECT_COLUMNS) {
+    if (existing.has(name)) continue;
+    db.exec(`ALTER TABLE projects ADD COLUMN ${name} ${type}`);
+  }
 }
 
 export class Store {
@@ -99,21 +132,32 @@ export class Store {
       deleteExpiredGuests: db.prepare(
         'DELETE FROM users WHERE is_guest = 1 AND expires_at IS NOT NULL AND expires_at <= ?',
       ),
-      listProjects: db.prepare(
-        `SELECT id, name, node_count, edge_count, created_at, updated_at
-         FROM projects WHERE user_id = ? ORDER BY updated_at DESC`,
-      ),
+      listProjects: db.prepare('SELECT * FROM projects WHERE user_id = ? ORDER BY updated_at DESC'),
       countProjects: db.prepare('SELECT COUNT(*) AS total FROM projects WHERE user_id = ?'),
       getProject: db.prepare('SELECT * FROM projects WHERE id = ? AND user_id = ?'),
+      getProjectById: db.prepare('SELECT * FROM projects WHERE id = ?'),
+      getProjectByShare: db.prepare('SELECT * FROM projects WHERE share_token = ?'),
       insertProject: db.prepare(
-        `INSERT INTO projects (id, user_id, name, doc_json, node_count, edge_count, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO projects (id, user_id, name, doc_json, node_count, edge_count, created_at, updated_at, revision)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       ),
       renameProject: db.prepare('UPDATE projects SET name = ?, updated_at = ? WHERE id = ? AND user_id = ?'),
       updateProjectDoc: db.prepare(
-        `UPDATE projects SET doc_json = ?, node_count = ?, edge_count = ?, updated_at = ?
+        `UPDATE projects SET doc_json = ?, node_count = ?, edge_count = ?, updated_at = ?, revision = revision + 1
          WHERE id = ? AND user_id = ?`,
       ),
+      updateProjectDocById: db.prepare(
+        `UPDATE projects SET doc_json = ?, node_count = ?, edge_count = ?, updated_at = ?, revision = revision + 1
+         WHERE id = ?`,
+      ),
+      updateProjectDocIfRevision: db.prepare(
+        `UPDATE projects SET doc_json = ?, node_count = ?, edge_count = ?, updated_at = ?, revision = revision + 1
+         WHERE id = ? AND revision = ?`,
+      ),
+      setProjectShare: db.prepare(
+        'UPDATE projects SET share_token = ?, share_mode = ?, share_at = ? WHERE id = ? AND user_id = ?',
+      ),
+      clearProjectShare: db.prepare('UPDATE projects SET share_token = NULL, share_mode = NULL, share_at = NULL WHERE id = ? AND user_id = ?'),
       deleteProject: db.prepare('DELETE FROM projects WHERE id = ? AND user_id = ?'),
       getPreferences: db.prepare('SELECT risk_json, updated_at FROM preferences WHERE user_id = ?'),
       savePreferences: db.prepare(
@@ -243,6 +287,48 @@ export class Store {
     return projectSummary(this.statements.getProject.get(id, userId));
   }
 
+  /**
+   * Writes a document through a share link, where there is no owning session.
+   * The revision guard is what lets two browsers on the same link edit without
+   * one silently dropping the other's drawing.
+   */
+  saveSharedProject(id, { docJson, nodeCount, edgeCount }, baseRevision, now = Date.now()) {
+    const row = this.statements.getProjectById.get(id);
+    if (!row) return { ok: false, reason: 'missing' };
+    if (row.share_token === null) return { ok: false, reason: 'revoked' };
+    if (baseRevision !== row.revision) return { ok: false, reason: 'stale', project: this.projectFromRow(row) };
+    this.statements.updateProjectDocIfRevision.run(docJson, nodeCount, edgeCount, now, id, row.revision);
+    return { ok: true, project: this.projectFromRow(this.statements.getProjectById.get(id)) };
+  }
+
+  /** The project behind a share token, or null when the link was revoked. */
+  projectByShareToken(token) {
+    const row = this.statements.getProjectByShare.get(token);
+    return row ? this.projectFromRow(row) : null;
+  }
+
+  projectById(id) {
+    const row = this.statements.getProjectById.get(id);
+    return row ? this.projectFromRow(row) : null;
+  }
+
+  projectFromRow(row) {
+    if (!row) return null;
+    return { ...projectSummary(row), docJson: row.doc_json, userId: row.user_id };
+  }
+
+  setProjectShare(userId, id, { token, mode }, now = Date.now()) {
+    const result = this.statements.setProjectShare.run(token, mode, now, id, userId);
+    if (result.changes === 0) return null;
+    return projectSummary(this.statements.getProject.get(id, userId));
+  }
+
+  clearProjectShare(userId, id) {
+    const result = this.statements.clearProjectShare.run(id, userId);
+    if (result.changes === 0) return null;
+    return projectSummary(this.statements.getProject.get(id, userId));
+  }
+
   deleteProject(userId, id) {
     return this.statements.deleteProject.run(id, userId).changes > 0;
   }
@@ -270,5 +356,7 @@ export function openStore(dbPath) {
   db.exec('PRAGMA foreign_keys = ON');
   db.exec('PRAGMA busy_timeout = 5000');
   db.exec(SCHEMA);
+  migrateProjectColumns(db);
+  db.exec(INDEXES);
   return new Store(db);
 }

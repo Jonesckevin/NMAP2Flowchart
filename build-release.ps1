@@ -4,18 +4,19 @@
 
 .DESCRIPTION
     One command for the whole release: checks (lint, API tests), the four single-file executables,
-    the two portable folders plus their zips, release/app.cjs and the packaged draw.io plugin.
-    The SPA is compiled once and reused, every step stops the run on failure, and the tail of the
-    script verifies checksums, archive contents and that the shipped bundle embeds the fresh build.
+    the two portable folders plus their zips, release/app.cjs, release/shared.cjs and the packaged
+    draw.io plugin. The SPA is compiled once and reused, every step stops the run on failure, and the
+    tail of the script verifies checksums, archive contents and that the shipped bundle embeds the
+    fresh build.
 
 .EXAMPLE
-    .\build-release.ps1                # checks, executables (4 targets), portable folders + zips, app.cjs, draw.io plugin
+    .\build-release.ps1                # checks, executables (4 targets), portable folders + zips, app.cjs, shared.cjs, draw.io plugin
 
 .EXAMPLE
     .\build-release.ps1 -SkipInstall   # node_modules is already up to date
 
 .EXAMPLE
-    .\build-release.ps1 -SkipPortable  # executables, app.cjs and the plugin only
+    .\build-release.ps1 -SkipPortable  # executables, app.cjs, shared.cjs and the plugin only
 
 .EXAMPLE
     .\build-release.ps1 -SkipPlugin -SkipBundle   # just the executables and portable folders
@@ -127,7 +128,7 @@ if ($Clean -and (Test-Path $releaseDir)) {
     # Only names this pipeline writes (plus the nmap2flowio-* artifacts from before the
     # rename), so a hand-placed file in release/ survives.
     $generated = Get-ChildItem -LiteralPath $releaseDir |
-        Where-Object { $_.Name -match '^(nmap2flow(io|chart)-[^\\/]+|nmap2drawio-plugin(\.zip)?|app\.cjs(\.sha256)?|SHA256SUMS\.txt|README\.txt|risk-policy\.example\.json)$' }
+        Where-Object { $_.Name -match '^(nmap2flow(io|chart)-[^\\/]+|nmap2drawio-plugin(\.zip)?|app\.cjs(\.sha256)?|shared\.cjs(\.sha256)?|SHA256SUMS\.txt|README\.txt|risk-policy\.example\.json)$' }
     foreach ($item in $generated) {
         Write-Host "    removing $($item.Name)" -ForegroundColor DarkGray
         Remove-Item -LiteralPath $item.FullName -Recurse -Force
@@ -178,6 +179,8 @@ try {
         $smoke = if ($NoSmoke) { @('--no-smoke') } else { @() }
         $frontend = if ($SkipExecutables -and $SkipPortable) { @() } else { @('--skip-frontend') }
         Invoke-Step 'release/app.cjs (what the release workflow publishes)' (@('npm', 'run', 'standalone:bundle', '--') + $frontend + $smoke)
+        # The same server with shared mode on by default: one diagram for everyone.
+        Invoke-Step 'release/shared.cjs (shared mode on by default)' (@('npm', 'run', 'standalone:shared', '--', '--skip-frontend') + $smoke)
     }
 }
 finally {
@@ -273,11 +276,24 @@ if (-not $SkipBundle) {
         if (-not $asset) {
             throw "could not read the SPA asset name from App\dist\index.html"
         }
-        if (-not (Select-String -LiteralPath $bundle -Pattern ([regex]::Escape($asset)) -Quiet)) {
-            throw "release/app.cjs does not contain $asset – it was built from a stale dist/"
+        foreach ($bundleName in @('app.cjs', 'shared.cjs')) {
+            $candidate = Join-Path $releaseDir $bundleName
+            if (-not (Select-String -LiteralPath $candidate -Pattern ([regex]::Escape($asset)) -Quiet)) {
+                throw "release/$bundleName does not contain $asset – it was built from a stale dist/"
+            }
+            Write-Host "    $bundleName embeds the current build ($asset)" -ForegroundColor Green
         }
-        Write-Host "    app.cjs embeds the current build ($asset)" -ForegroundColor Green
     }
+
+    # shared.cjs must be the same build with the shared default baked in.
+    $sharedBundle = Join-Path $releaseDir 'shared.cjs'
+    Assert-File $sharedBundle 'release/shared.cjs'
+    $sharedSha = "$sharedBundle.sha256"
+    Assert-File $sharedSha 'release/shared.cjs.sha256'
+    if (-not (Select-String -LiteralPath $sharedSha -Pattern (Get-FileHash -LiteralPath $sharedBundle -Algorithm SHA256).Hash.ToLowerInvariant() -Quiet)) {
+        throw 'release/shared.cjs.sha256 does not match release/shared.cjs'
+    }
+    Write-Host '    shared.cjs checksum matches' -ForegroundColor Green
 }
 
 if (-not $SkipPlugin) {
@@ -312,6 +328,8 @@ Write-Host '==> downloads' -ForegroundColor Cyan
 $downloads = @(
     'app.cjs',
     'app.cjs.sha256',
+    'shared.cjs',
+    'shared.cjs.sha256',
     'nmap2flowchart-portable-win-x64.zip',
     'nmap2flowchart-portable-linux-x64.zip',
     'nmap2drawio-plugin.zip'

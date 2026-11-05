@@ -9,17 +9,22 @@ type HistoryState = {
 
 const LIMIT = 60;
 
-export function useDocHistory(initial: DiagramDoc | null = null) {
+export function useDocHistory(initial: DiagramDoc | null = null, options: { locked?: boolean } = {}) {
+  const locked = options.locked === true;
   const [state, setState] = useState<HistoryState>({ past: [], present: initial, future: [] });
 
-  const commit = useCallback((next: DiagramDoc | ((current: DiagramDoc) => DiagramDoc)) => {
-    setState((current) => {
-      if (!current.present) return current;
-      const value = typeof next === 'function' ? next(current.present) : next;
-      if (value === current.present) return current;
-      return { past: [...current.past, current.present].slice(-LIMIT), present: value, future: [] };
-    });
-  }, []);
+  const commit = useCallback(
+    (next: DiagramDoc | ((current: DiagramDoc) => DiagramDoc)) => {
+      if (locked) return;
+      setState((current) => {
+        if (!current.present) return current;
+        const value = typeof next === 'function' ? next(current.present) : next;
+        if (value === current.present) return current;
+        return { past: [...current.past, current.present].slice(-LIMIT), present: value, future: [] };
+      });
+    },
+    [locked],
+  );
 
   const replace = useCallback((next: DiagramDoc | ((current: DiagramDoc) => DiagramDoc)) => {
     setState((current) => {
@@ -34,14 +39,16 @@ export function useDocHistory(initial: DiagramDoc | null = null) {
   }, []);
 
   const checkpoint = useCallback(() => {
+    if (locked) return;
     setState((current) =>
       current.present
         ? { past: [...current.past, current.present].slice(-LIMIT), present: current.present, future: [] }
         : current,
     );
-  }, []);
+  }, [locked]);
 
   const undo = useCallback(() => {
+    if (locked) return;
     setState((current) => {
       if (!current.present) return current;
       let past = current.past;
@@ -54,9 +61,10 @@ export function useDocHistory(initial: DiagramDoc | null = null) {
         future: [current.present, ...current.future].slice(0, LIMIT),
       };
     });
-  }, []);
+  }, [locked]);
 
   const redo = useCallback(() => {
+    if (locked) return;
     setState((current) => {
       if (current.future.length === 0 || !current.present) return current;
       const next = current.future[0];
@@ -66,7 +74,7 @@ export function useDocHistory(initial: DiagramDoc | null = null) {
         future: current.future.slice(1),
       };
     });
-  }, []);
+  }, [locked]);
 
   return useMemo(
     () => ({

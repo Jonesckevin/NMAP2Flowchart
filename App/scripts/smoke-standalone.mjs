@@ -170,6 +170,18 @@ async function main() {
     check('/api/config answers', config.status === 200 && configBody !== null, `status ${config.status}`);
     check('accounts stay off by default', configBody?.authEnabled === false);
 
+    const sharedState = await fetch(`${server.base}api/shared`);
+    const sharedBody = await sharedState.json().catch(() => null);
+    check('/api/shared answers', sharedState.status === 200 && sharedBody !== null, `status ${sharedState.status}`);
+    if (sharedBody?.enabled) {
+      check(
+        'shared mode exposes one diagram',
+        typeof sharedBody.revision === 'number' && sharedBody.doc !== undefined,
+        JSON.stringify(sharedBody).slice(0, 120),
+      );
+      check('config advertises shared mode', configBody?.sharedEnabled === true);
+    }
+
     const deepLink = await fetch(`${server.base}scan/some/deep/link`);
     const deepBody = await deepLink.text();
     check('SPA fallback serves the shell', deepLink.status === 200 && deepBody.includes('id="root"'));

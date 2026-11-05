@@ -8,6 +8,8 @@ import { BUILD_INFO, EMBEDDED_APP } from '#app-bundle';
 
 import { createApiHandler } from './app.mjs';
 import { appDatabasePath, appDataDir, loadConfig } from './config.mjs';
+import { loggerFromConfig } from './log.mjs';
+import { createSharedHub, createSharedStore } from './shared.mjs';
 import { createAssetStore, createStaticHandler, decodeEmbeddedAssets } from './static.mjs';
 import { openStore } from './store.mjs';
 
@@ -21,17 +23,29 @@ Usage: ${BUILD_INFO.name} [options]
   --open            Open the app in the default browser
   --no-open         Never open a browser
   --auth            Enable local accounts and project autosave
-  --data-dir <dir>  Where the accounts database is kept
+  --shared          Serve one diagram to everyone who connects (see below)
+  --data-dir <dir>  Where the accounts database and shared diagram are kept
   -v, --version     Print the version and exit
   -h, --help        Print this help and exit
 
+Shared mode keeps a single diagram on this server. Everyone who opens the URL
+sees the same drawing, edits are broadcast live to the other browsers, and the
+mouse of each connected person is drawn on the canvas. Anyone who can reach the
+port can change the diagram – run it on a network you trust, and note that
+--shared binds every interface unless --host says otherwise. The diagram lives
+in <data-dir>/shared.json (or NMAP_SHARED_FILE); copy that file to take a copy.
+
 The usual NMAP_* environment variables are honoured: NMAP_API_HOST,
-NMAP_API_PORT, NMAP_DATA_DIR, NMAP_AUTH_ENABLED, the account limits, and the
-risk levels shared with every browser (NMAP_RISK_LEVELS as inline JSON, or
-NMAP_RISK_POLICY_FILE pointing at a JSON file).
+NMAP_API_PORT, NMAP_DATA_DIR, NMAP_AUTH_ENABLED, NMAP_SHARED, NMAP_SHARED_FILE,
+the account limits, and the risk levels shared with every browser
+(NMAP_RISK_LEVELS as inline JSON, or NMAP_RISK_POLICY_FILE pointing at a JSON
+file).
 `;
 
 const RUNTIME = `${process.platform}-${process.arch}`;
+
+/** True in the bundle built by `npm run standalone:shared`. */
+const SHARED_DEFAULT = globalThis.__N2F_SHARED_DEFAULT__ === true;
 
 function defaultDataDir() {
   const home = os.homedir();
@@ -58,6 +72,8 @@ function parseCli(argv) {
         open: { type: 'boolean' },
         'no-open': { type: 'boolean' },
         auth: { type: 'boolean' },
+        shared: { type: 'boolean' },
+        'no-shared': { type: 'boolean' },
         version: { type: 'boolean', short: 'v' },
         help: { type: 'boolean', short: 'h' },
       },
@@ -152,14 +168,20 @@ async function main() {
 
   const env = process.env;
   const defaults = loadConfig(env);
+  const sharedEnabled =
+    values['no-shared'] === true ? false : values.shared === true || SHARED_DEFAULT || defaults.sharedEnabled;
   const config = {
     ...defaults,
     authEnabled: values.auth === true || defaults.authEnabled,
-    host: values.host ?? (env.NMAP_API_HOST ? defaults.host : '127.0.0.1'),
+    sharedEnabled,
+    host:
+      values.host ??
+      (env.NMAP_API_HOST ? defaults.host : sharedEnabled ? '0.0.0.0' : '127.0.0.1'),
     port: values.port === undefined ? (env.NMAP_API_PORT ? defaults.port : 8080) : parsePort(values.port),
     dataDir: values['data-dir'] ?? (env.NMAP_DATA_DIR ? defaults.dataDir : defaultDataDir()),
   };
   config.dbPath = env.NMAP_DB_PATH || appDatabasePath(config.dataDir);
+  config.sharedFile = defaults.sharedFile || path.join(config.dataDir, 'shared.json');
 
   const store = config.authEnabled ? openStore(config.dbPath) : null;
   if (store) {
@@ -168,9 +190,18 @@ async function main() {
     timer.unref();
   }
 
+  const logger = loggerFromConfig(config);
+  const log = logger.child('server');
+  // One hub for the whole process: the standalone room and every project share
+  // link get their own room inside it.
+  const hub = createSharedHub({ logger: log });
+  const shared = config.sharedEnabled
+    ? { store: createSharedStore({ filePath: config.sharedFile, logger: log }), hub }
+    : null;
+
   const assets = createAssetStore(decodeEmbeddedAssets(EMBEDDED_APP));
   const staticHandler = createStaticHandler({ assets });
-  const apiHandler = createApiHandler({ config, store });
+  const apiHandler = createApiHandler({ config, store, shared, hub, logger });
 
   const server = http.createServer((request, response) => {
     if (isApiRequest(request.url)) {
@@ -191,23 +222,37 @@ async function main() {
 
   const shownHost = config.host === '0.0.0.0' || config.host === '::' ? '127.0.0.1' : config.host;
   const url = `http://${shownHost.includes(':') ? `[${shownHost}]` : shownHost}:${port}/`;
+  const lanUrls =
+    config.host === '0.0.0.0' || config.host === '::'
+      ? Object.values(os.networkInterfaces())
+          .flat()
+          .filter((entry) => entry && entry.family === 'IPv4' && !entry.internal)
+          .map((entry) => `http://${entry.address}:${port}/`)
+      : [];
 
   console.log(`\n  ${BUILD_INFO.name} ${BUILD_INFO.version} · ${RUNTIME} · built ${BUILD_INFO.builtAt}`);
   console.log(`  ${assets.size} files embedded · no network access needed\n`);
   console.log(`  Open   ${url}`);
-  console.log(
-    config.authEnabled
-      ? `  Mode   accounts on · ${config.dbPath}`
-      : '  Mode   browser storage only · nothing leaves this machine',
-  );
+  for (const lanUrl of lanUrls) console.log(`         ${lanUrl}   (for everyone else)`);
+  if (shared) {
+    console.log('  Mode   shared · one diagram for everyone who opens this server');
+    console.log(`         ${config.sharedFile}`);
+    console.log('         anyone who can reach the port can edit it – trusted networks only');
+  } else if (config.authEnabled) {
+    console.log(`  Mode   accounts on · ${config.dbPath}`);
+    console.log('         projects can be published with a share link from the Share button');
+  } else {
+    console.log('  Mode   browser storage only · nothing leaves this machine');
+  }
+  console.log(`  Logs   ${config.logLevel} (${config.logFormat}) · docker compose logs -f app`);
   console.log('  Stop   Ctrl+C\n');
 
-  if (values.open === true || (values['no-open'] !== true && process.stdout.isTTY)) {
-    openBrowser(url);
-  }
+  const autoOpen = values.open === true || (!shared && values['no-open'] !== true && process.stdout.isTTY);
+  if (autoOpen) openBrowser(url);
 
   const shutdown = (signal) => {
-    console.log(`\n  ${signal} received – shutting down`);
+    log.info('shutting down', { signal });
+    shared?.hub.close();
     server.closeAllConnections?.();
     server.close(() => {
       store?.close();

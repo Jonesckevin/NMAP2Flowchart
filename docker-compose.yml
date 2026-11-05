@@ -59,6 +59,17 @@ services:
       NMAP_MAX_PROJECTS: "${NMAP_MAX_PROJECTS:-200}"
       NMAP_TRUST_PROXY: "true"
       NMAP_DATA_DIR: /data
+      # --- Public share mode ("one diagram for everyone") ------------------------
+      # true turns this stack into a shared-diagram server: every browser that opens
+      # the app sees and edits the same drawing, kept in /data/shared.json inside the
+      # volume. Accounts and share links keep working alongside it.
+      NMAP_SHARED: "${NMAP_SHARED:-false}"
+      # --- Logs (docker compose logs -f api) ------------------------------------
+      # info (default) reports sign-in, sessions, projects and share links;
+      # debug adds per-request detail; warn/error go to stderr.
+      # NMAP_LOG_FORMAT=json gives one JSON object per line for a log collector.
+      NMAP_LOG_LEVEL: "${NMAP_LOG_LEVEL:-info}"
+      NMAP_LOG_FORMAT: "${NMAP_LOG_FORMAT:-text}"
       # --- Risk levels shared with every browser (README → “Risk levels”) ------
       # Leave both unset to use the built-in Critical / Medium / Low tiers.
       #

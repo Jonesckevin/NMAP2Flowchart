@@ -1915,8 +1915,13 @@ body {
 }
 
 @media (min-width: 761px) {
+  /* With the minimap gone and the dock in the bottom-left, the grid/legend row
+     moves up out of its way instead of sitting on top of the dock. */
   .canvas--narrow .canvas-tools {
-    bottom: 15px;
+    left: 12px;
+    right: auto;
+    top: 12px;
+    bottom: auto;
   }
 }
 
@@ -2671,7 +2676,8 @@ body {
   color: var(--text);
 }
 
-.layer-row__action:disabled {
+.layer-row__action:disabled,
+.layer-row__eye:disabled {
   color: #33404f;
   cursor: default;
   background: transparent;
@@ -2699,6 +2705,10 @@ body {
   border: 0;
   padding: 0;
   cursor: pointer;
+}
+
+.layer-row__swatch:disabled {
+  cursor: default;
 }
 
 .layer-row__name {
@@ -3454,6 +3464,257 @@ select.input {
 .autosave-status--error::before {
   background: #ff6b5b;
 }
+
+/* Shared mode: who is on this server, and where their pointer is. */
+.presence {
+  position: relative;
+  align-self: center;
+}
+
+.presence__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid rgba(47, 214, 165, 0.3);
+  border-radius: 999px;
+  background: rgba(47, 214, 165, 0.09);
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.presence__chip:hover {
+  border-color: rgba(47, 214, 165, 0.55);
+  color: var(--text);
+}
+
+.presence__chip b {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.presence__chip--offline {
+  border-color: rgba(255, 107, 91, 0.4);
+  background: rgba(255, 107, 91, 0.1);
+  color: #ffb4ab;
+}
+
+.presence__chip--connecting {
+  border-color: var(--line-strong);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-muted);
+}
+
+.presence__dots {
+  display: inline-flex;
+}
+
+.presence__dots i {
+  width: 8px;
+  height: 8px;
+  margin-right: -2px;
+  border-radius: 50%;
+  border: 1px solid rgba(5, 9, 14, 0.8);
+}
+
+.presence__panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 41;
+  width: 268px;
+  padding: 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--panel-2);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6);
+}
+
+.presence__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 6px 6px;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.presence__head b {
+  color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.presence__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 210px;
+  overflow-y: auto;
+}
+
+.presence__list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 7px;
+}
+
+.presence__list li.is-self {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.presence__list i {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.presence__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.presence__name em {
+  margin-left: 6px;
+  color: var(--muted);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.presence__meta {
+  flex: none;
+  color: var(--text-muted);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.presence__meta b {
+  display: block;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.presence__rename {
+  display: grid;
+  gap: 4px;
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.presence__rename span {
+  padding: 0 6px;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.shared-cursors {
+  position: fixed;
+  inset: 0;
+  z-index: 46;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.shared-cursor {
+  position: absolute;
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  transform: translate(-2px, -2px);
+  color: var(--cursor-color, #2fd6a5);
+  transition: left 80ms linear, top 80ms linear;
+}
+
+.shared-cursor span {
+  padding: 1px 6px 2px;
+  border-radius: 0 6px 6px 6px;
+  background: var(--cursor-color, #2fd6a5);
+  color: #06121a;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+}
+
+/* Share links: the header says which project and whether the link can edit. */
+.share-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: center;
+  max-width: 240px;
+  padding: 0 9px;
+  height: 26px;
+  border: 1px solid rgba(47, 214, 165, 0.32);
+  border-radius: 999px;
+  background: rgba(47, 214, 165, 0.08);
+  font-size: 11px;
+  color: var(--text-soft);
+}
+
+.share-badge b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.share-badge em {
+  flex: none;
+  color: var(--text-muted);
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.share-badge.is-view {
+  border-color: rgba(240, 162, 92, 0.4);
+  background: rgba(240, 162, 92, 0.1);
+}
+
+.share-button.is-on {
+  color: var(--accent);
+}
+
+.share-dialog__link {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.share-dialog__link .input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12px;
+}
+
+.share-dialog__modes {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.share-dialog__spacer {
+  flex: 1;
+}
 .dialog-backdrop {
   position: fixed;
   z-index: 100;
@@ -3697,6 +3958,18 @@ select.input {
   padding-left: 7px;
   border-left: 1px solid var(--line-strong);
   color: var(--muted);
+}
+
+.account-chip__caret {
+  flex: none;
+  margin-left: -1px;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1;
+}
+
+.account-chip:hover .account-chip__caret {
+  color: var(--text);
 }
 
 .account-chip__dot {
@@ -4046,6 +4319,11 @@ select.input {
   text-transform: uppercase;
 }
 
+.project-row__badge--share {
+  border-color: rgba(75, 159, 255, 0.45);
+  color: #6db1ff;
+}
+
 .project-row__action {
   padding: 4px 6px;
   border: 0;
@@ -4060,6 +4338,10 @@ select.input {
 .project-row__action:hover:not(:disabled) {
   background: #1a2432;
   color: var(--text);
+}
+
+.project-row__action--open {
+  color: var(--text-soft);
 }
 
 .project-row__action.is-danger:hover:not(:disabled) {

@@ -23,6 +23,7 @@ import { HelpButton } from './components/HelpPanel';
 import { AccountButton } from './components/AccountButton';
 import { AccountDialog } from './components/AccountDialog';
 import { useAccount } from './account/useAccount';
+import type { ProjectSummary } from './account/types';
 import { buildRfGraph, type AppEdge, type AppNode } from './graph/buildRfGraph';
 import {
   createDocFromScan,
@@ -75,6 +76,11 @@ import {
   type StackMode,
 } from './doc/operations';
 import { DesignOpenDialog, type DesignPreview } from './components/DesignOpenDialog';
+import { ShareDialog } from './components/ShareDialog';
+import { PresenceChip } from './components/PresenceChip';
+import { SharedCursors } from './components/SharedCursors';
+import { useSharedSession } from './shared/useShared';
+import { shareTokenFromLocation, type SharedTarget } from './shared/live';
 import { DESIGN_EXTENSION, buildDesignFile, looksLikeJson, readDesignFile } from './doc/designFile';
 import { parseNmapXml } from './nmap/parseNmapXml';
 import { openPorts, discoveryOnly, type NmapScan } from './model/types';
@@ -233,10 +239,32 @@ const IMPORT_MODE_HINTS: Record<ImportMode, { label: string; hint: string }> = {
   layer: { label: 'New layer', hint: 'Add this scan beside the current diagram' },
 };
 
+/** A share link in the address bar turns this page into a joined room. */
+const SHARE_TOKEN = shareTokenFromLocation();
+
 function Canvas() {
-  const history = useDocHistory();
-  const doc = history.doc;
   const account = useAccount();
+  // The room this page belongs to: a share link, the owner's shared project, or a
+  // `--shared` server. `null` is the normal browser-storage editor.
+  const sharedTarget = useMemo<SharedTarget | null>(() => {
+    if (SHARE_TOKEN) return { kind: 'link', token: SHARE_TOKEN };
+    const share = account.activeProject?.share;
+    if (share) return { kind: 'project', token: share.token };
+    return SHARE_TOKEN === null ? { kind: 'server' } : null;
+  }, [account.activeProject?.share]);
+  const shared = useSharedSession(sharedTarget);
+  const {
+    ready: sharedReady,
+    enabled: sharedEnabled,
+    incoming: sharedIncoming,
+    kind: sharedKind,
+    canPublish: sharedCanPublish,
+    readOnly: sharedReadOnly,
+    publish: publishShared,
+  } = shared;
+  // A view-only link locks every mutation, including drags and inspector edits.
+  const history = useDocHistory(null, { locked: shared.readOnly });
+  const doc = history.doc;
 
   // Level colours come from the diagram first, then the account, then the
   // server-configured default, then the built-in three tiers.
@@ -284,6 +312,15 @@ function Canvas() {
   const [onlyMatches, setOnlyMatches] = useState(false);
   const [snapSize, setSnapSize] = useState(16);
   const [gridMenu, setGridMenu] = useState(false);
+  const [shareProjectId, setShareProjectId] = useState<string | null>(null);
+  // The project the share dialog belongs to – kept by id so the dialog follows the
+  // server's answer after a link is created, rotated or switched off.
+  const shareTarget = useMemo<ProjectSummary | null>(() => {
+    if (!shareProjectId) return null;
+    const active = account.activeProject;
+    if (active && active.id === shareProjectId) return active;
+    return account.projects.find((project) => project.id === shareProjectId) ?? null;
+  }, [shareProjectId, account.activeProject, account.projects]);
   /** True when the canvas is too narrow to share its bottom row with the minimap. */
   const [narrowCanvas, setNarrowCanvas] = useState(false);
 
@@ -297,6 +334,7 @@ function Canvas() {
   const layerPanelRef = useRef<HTMLElement>(null);
   const toastTimer = useRef<number | undefined>(undefined);
   const restored = useRef(false);
+  const appliedSeq = useRef(0);
   const importMode = useRef<ImportMode>('merge');
   const marqueeStart = useRef<{ x0: number; y0: number; ox: number; oy: number } | null>(null);
   const marqueeClickGuard = useRef(false);
@@ -389,6 +427,7 @@ function Canvas() {
 
   const reopenedProject = useRef(false);
   useEffect(() => {
+    if (SHARE_TOKEN) return;
     if (reopenedProject.current || !restoreProjectId) return;
     reopenedProject.current = true;
     void (async () => {
@@ -398,6 +437,7 @@ function Canvas() {
   }, [restoreProjectId, openAccountProject, loadDoc]);
 
   useEffect(() => {
+    if (SHARE_TOKEN) return;
     if (!doc || !accountProjectId) return;
     const timer = window.setTimeout(() => saveActiveProject(doc, accountProjectId), 1500);
     return () => window.clearTimeout(timer);
@@ -413,8 +453,18 @@ function Canvas() {
   }, [accountSaveState, accountError, notify]);
 
   useEffect(() => {
-    if (restored.current) return;
+    if (!sharedReady || restored.current) return;
     restored.current = true;
+    if (sharedEnabled) {
+      // The room owns the diagram; nothing is read from, or written to, this browser.
+      // (The owner's own project arrives through the account restore instead.)
+      const sharedDoc = sharedKind === 'project' ? null : (sharedIncoming?.doc ?? null);
+      if (sharedDoc) {
+        history.reset(sharedDoc);
+        window.setTimeout(() => fitView({ padding: 0.16 }), 120);
+      }
+      return;
+    }
     let raw: string | null = null;
     try {
       raw = localStorage.getItem(STORAGE_KEY);
@@ -456,10 +506,20 @@ function Canvas() {
       history.reset(saved);
       window.setTimeout(() => fitView({ padding: 0.16 }), 120);
     }
-  }, [history, fitView]);
+  }, [history, fitView, sharedReady, sharedEnabled, sharedIncoming, sharedKind, notify]);
 
   useEffect(() => {
     if (!doc) return;
+    if (sharedCanPublish) {
+      // Everyone on the link sees this change; the room saves it server-side.
+      publishShared(doc);
+      return;
+    }
+    if (sharedEnabled || SHARE_TOKEN) {
+      // A room-backed page keeps no browser copy: a view link saves nothing, and
+      // the owner's own project saves through the account API below.
+      return;
+    }
     setAutosaveStatus('saving');
     const timer = window.setTimeout(() => {
       try {
@@ -475,7 +535,27 @@ function Canvas() {
       }
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [doc]);
+  }, [doc, sharedEnabled, sharedCanPublish, publishShared]);
+
+  // Remote changes land as a plain replacement: they are not this user's edit, so
+  // they do not become an undo step, and they wait for a drag or a note to finish.
+  useEffect(() => {
+    const incoming = shared.incoming;
+    if (!incoming) return;
+    // Each handed-over document is applied once – re-running this for a local edit
+    // would otherwise replace it with the last document someone else sent.
+    if (incoming.seq <= appliedSeq.current) return;
+    if (nodeDragging || editingNote) return;
+    appliedSeq.current = incoming.seq;
+    if (!doc) {
+      // Nobody had published a diagram yet – this is the first one.
+      history.reset(incoming.doc);
+      window.setTimeout(() => fitView({ padding: 0.16 }), 120);
+      return;
+    }
+    history.replace(incoming.doc);
+    if (incoming.conflict) notify('Another browser saved first – showing their version');
+  }, [shared.incoming, nodeDragging, editingNote, doc, history, notify, fitView]);
 
   const marqueeActive = marquee !== null;
   useEffect(() => {
@@ -1639,8 +1719,7 @@ function Canvas() {
               type="button"
               className={`overview-button${riskSummaryOpen ? ' is-on' : ''}`}
               aria-expanded={riskSummaryOpen}
-              title="Risk summary: levels, ports and hosts, with JSON/CSV export"
-              onClick={() => {
+              title="Risk summary: levels, ports and hosts, with JSON/CSV export"              onClick={() => {
                 setOverviewOpen(false);
                 setRiskSummaryOpen((open) => !open);
               }}
@@ -1651,11 +1730,22 @@ function Canvas() {
         </div>
 
         <div className="topbar__actions">
-          {doc && (
-            <span className={`autosave-status autosave-status--${saveTone}`} role="status" title={saveTitle}>
-              {saveLabel}
+          {SHARE_TOKEN && (
+            <span className={`share-badge${shared.readOnly ? ' is-view' : ''}`} title="You are on a share link">
+              <b>{shared.title ?? 'Shared diagram'}</b>
+              <em>{shared.readOnly ? 'view only' : 'live'}</em>
             </span>
           )}
+          {shared.live ? (
+            <PresenceChip live={shared.live} users={shared.users} status={shared.status} />
+          ) : (
+            doc && (
+              <span className={`autosave-status autosave-status--${saveTone}`} role="status" title={saveTitle}>
+                {saveLabel}
+              </span>
+            )
+          )}
+          {!SHARE_TOKEN && (
           <div className="menu-wrap">
             <button
               type="button"
@@ -1706,15 +1796,33 @@ function Canvas() {
               </>
             )}
           </div>
-          <button
-            type="button"
-            className="btn btn--ghost workspace-save"
-            disabled={!doc}
-            title="Save the diagram as a file"
-            onClick={exportDesign}
-          >
-            Save
-          </button>
+          )}
+          {!SHARE_TOKEN && (
+            <button
+              type="button"
+              className="btn btn--ghost workspace-save"
+              disabled={!doc}
+              title="Save the diagram as a file"
+              onClick={exportDesign}
+            >
+              Save
+            </button>
+          )}
+          {!SHARE_TOKEN && account.activeProject && (
+            <button
+              type="button"
+              className={`btn btn--ghost share-button${account.activeProject.share ? ' is-on' : ''}`}
+              title={
+                account.activeProject.share
+                  ? 'This project has a share link – manage it'
+                  : 'Publish this project with a share link'
+              }
+              aria-haspopup="dialog"
+              onClick={() => setShareProjectId(account.activeProject!.id)}
+            >
+              Share
+            </button>
+          )}
           {focusName && (
             <button
               type="button"
@@ -1800,14 +1908,16 @@ function Canvas() {
             </div>
           )}
 
-          <AccountButton
-            account={account}
-            onOpen={() => {
-              setAccountOpen(true);
-            }}
-          />
+          {!SHARE_TOKEN && (
+            <AccountButton
+              account={account}
+              onOpen={() => {
+                setAccountOpen(true);
+              }}
+            />
+          )}
 
-          <HelpButton />
+          <HelpButton shared={shared.enabled} />
 
           <button
             type="button"
@@ -1869,50 +1979,80 @@ function Canvas() {
               <>
                 <div className="menu-backdrop" onClick={() => setMoreMenu(false)} />
                 <div className="menu" role="menu">
+                  {!SHARE_TOKEN && account.user && (
+                    <>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          closeMenus();
+                          if (account.activeProject) setShareProjectId(account.activeProject.id);
+                          else setAccountOpen(true);
+                        }}
+                      >
+                        {account.activeProject ? `Share “${account.activeProject.name}”…` : 'Share a project…'}
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          closeMenus();
+                          setAccountOpen(true);
+                        }}
+                      >
+                        Projects – switch or create…
+                      </button>
+                      <div className="menu__sep" />
+                    </>
+                  )}
                   <p className="menu__note">{exportScope}</p>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      closeMenus();
-                      loadSample();
-                    }}
-                  >
-                    Load sample scan
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      closeMenus();
-                      importMode.current = 'replace';
-                      fileInput.current?.click();
-                    }}
-                  >
-                    New diagram from scan…
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      closeMenus();
-                      importMode.current = 'layer';
-                      fileInput.current?.click();
-                    }}
-                  >
-                    Add scan as new layer…
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={!doc}
-                    onClick={() => {
-                      closeMenus();
-                      resetLayout();
-                    }}
-                  >
-                    Re-flow positions
-                  </button>
+                  {!sharedReadOnly && (
+                    <>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          closeMenus();
+                          loadSample();
+                        }}
+                      >
+                        Load sample scan
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          closeMenus();
+                          importMode.current = 'replace';
+                          fileInput.current?.click();
+                        }}
+                      >
+                        New diagram from scan…
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          closeMenus();
+                          importMode.current = 'layer';
+                          fileInput.current?.click();
+                        }}
+                      >
+                        Add scan as new layer…
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        disabled={!doc}
+                        onClick={() => {
+                          closeMenus();
+                          resetLayout();
+                        }}
+                      >
+                        Re-flow positions
+                      </button>
+                    </>
+                  )}
                   <button
                     type="button"
                     role="menuitem"
@@ -1946,17 +2086,19 @@ function Canvas() {
                   >
                     Export draw.io
                   </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={!doc}
-                    onClick={() => {
-                      closeMenus();
-                      setRiskOpen(true);
-                    }}
-                  >
-                    Risk levels…
-                  </button>
+                  {!sharedReadOnly && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={!doc}
+                      onClick={() => {
+                        closeMenus();
+                        setRiskOpen(true);
+                      }}
+                    >
+                      Risk levels…
+                    </button>
+                  )}
                   <div className="menu__sep" />
                   <button
                     type="button"
@@ -2062,6 +2204,7 @@ function Canvas() {
             dropLayerId={dropLayerId}
             dragging={nodeDragging}
             panelRef={layerPanelRef}
+            readOnly={shared.readOnly}
             onSelect={setActiveLayerId}
             onToggleVisible={(id) => history.replace(toggleLayerVisible(doc, id))}
             onFocus={(id) => history.replace(setFocusedLayer(doc, id))}
@@ -2089,6 +2232,11 @@ function Canvas() {
           className={`canvas${narrowCanvas ? ' canvas--narrow' : ''}`}
           ref={canvasRef}
           onDoubleClick={handleCanvasDoubleClick}
+          onPointerMove={(event) => {
+            if (!shared.live) return;
+            shared.live.sendCursor(screenToFlowPosition({ x: event.clientX, y: event.clientY }));
+          }}
+          onPointerLeave={() => shared.live?.sendCursor(null)}
           onClickCapture={(event) => {
             if (!marqueeClickGuard.current) return;
             marqueeClickGuard.current = false;
@@ -2323,6 +2471,8 @@ function Canvas() {
             onNodesDelete={handleNodesDelete}
             onEdgesDelete={handleEdgesDelete}
             onConnect={handleConnect}
+            nodesDraggable={!shared.readOnly}
+            nodesConnectable={!shared.readOnly}
             deleteKeyCode={null}
             colorMode="dark"
             minZoom={0.08}
@@ -2355,6 +2505,8 @@ function Canvas() {
             )}
           </ReactFlow>
 
+          <SharedCursors live={shared.live} />
+
           {marquee && (
             <div
               className="marquee"
@@ -2384,7 +2536,7 @@ function Canvas() {
             </div>
           )}
 
-          {doc && (
+          {doc && !shared.readOnly && (
             <div className="canvas-dock">
               <span className="canvas-dock__label">Add</span>
               {(['host', 'hop', 'section', 'note'] as const).map((kind) => (
@@ -2408,7 +2560,7 @@ function Canvas() {
             </div>
           )}
 
-          {doc && (
+          {doc && !shared.readOnly && (
             <SelectionToolbar
               doc={doc}
               nodeIds={selection.nodes}
@@ -2428,7 +2580,7 @@ function Canvas() {
             />
           )}
 
-          {onboardingOpen && (
+          {onboardingOpen && !SHARE_TOKEN && (
             <div className={`onboarding${doc ? '' : ' onboarding--empty'}`} role="region" aria-label="Getting started">
               <button type="button" className="onboarding__close" onClick={dismissOnboarding} aria-label="Dismiss getting started">
                 ×
@@ -2457,10 +2609,19 @@ function Canvas() {
           {!doc && (
             <div className="empty-state">
               <Logo size={56} />
-              <h1>Turn an nmap scan into a network map</h1>
+              <h1>{shared.enabled ? 'This shared diagram is empty' : 'Turn an nmap scan into a network map'}</h1>
               <p>
-                Drop an <code>-oX</code> XML file anywhere on this page, or start from the bundled lab scan.
-                Everything on the canvas is editable afterwards.
+                {shared.enabled ? (
+                  <>
+                    Drop an <code>-oX</code> XML file anywhere on this page, or open a design file. It goes
+                    live for everyone connected here.
+                  </>
+                ) : (
+                  <>
+                    Drop an <code>-oX</code> XML file anywhere on this page, or start from the bundled lab
+                    scan. Everything on the canvas is editable afterwards.
+                  </>
+                )}
               </p>
               <pre>nmap -sV -sC --traceroute -oX scan.xml 10.0.0.0/24</pre>
               <div className="empty-state__actions">
@@ -2479,11 +2640,13 @@ function Canvas() {
                 </button>
               </div>
               <p className="empty-state__hint">
-                {account.user
-                  ? `Signed in as ${account.user.username}. Diagrams save to your account and to this browser.`
-                  : account.features.authEnabled
-                    ? 'Everything stays in this browser tab unless you sign in. No scan data leaves your machine.'
-                    : 'Everything stays in this browser tab – no scan data leaves your machine.'}
+                {shared.enabled
+                  ? 'Everyone who opens this page edits the same diagram – changes appear on their screens as you make them.'
+                  : account.user
+                    ? `Signed in as ${account.user.username}. Diagrams save to your account and to this browser.`
+                    : account.features.authEnabled
+                      ? 'Everything stays in this browser tab unless you sign in. No scan data leaves your machine.'
+                      : 'Everything stays in this browser tab – no scan data leaves your machine.'}
               </p>
             </div>
           )}
@@ -2491,7 +2654,7 @@ function Canvas() {
           {dragging && <div className="drop-overlay">Drop nmap XML or a saved diagram</div>}
         </div>
 
-        {doc && (
+        {doc && !shared.readOnly && (
           <>
             <button
               type="button"
@@ -2641,6 +2804,18 @@ function Canvas() {
         />
       )}
 
+      {shareTarget && (
+        <ShareDialog
+          open
+          projectName={shareTarget.name}
+          share={shareTarget.share ?? null}
+          busy={account.busy}
+          onShare={(mode, rotate) => void account.shareProject(shareTarget.id, mode, rotate)}
+          onStop={() => void account.stopSharing(shareTarget.id)}
+          onClose={() => setShareProjectId(null)}
+        />
+      )}
+
       <AccountDialog
         account={account}
         open={accountOpen}
@@ -2649,6 +2824,10 @@ function Canvas() {
         onOpenProject={(project) => {
           loadDoc(project.doc, `“${project.name}” opened from your account`);
           setAccountOpen(false);
+        }}
+        onShareProject={(project) => {
+          setAccountOpen(false);
+          setShareProjectId(project.id);
         }}
       />
 
