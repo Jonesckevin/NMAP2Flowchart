@@ -1,0 +1,162 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1332" height="644" viewBox="0 0 1332 644">
+<title>lab-scan.xml</title>
+<rect x="0" y="0" width="1332" height="644" fill="#ffffff"/>
+<g transform="translate(36 36)">
+<rect x="0" y="164" width="728" height="408" fill="#f6f8fb" stroke="#b6c1d1" stroke-width="1.4" rx="16" stroke-dasharray="7 6"/>
+<rect x="14" y="177" width="16" height="16" fill="#edf9f6" stroke="#c5ede3" stroke-width="1" rx="3.84"/><text x="22" y="187.88" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="7.04" font-weight="600" text-anchor="middle" fill="#ace4d7">SE</text>
+<text x="38" y="191" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="12" font-weight="600" fill="#334155">10.0.0.0/24</text>
+<text x="127.2" y="191" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9.5" fill="#6b7a8f">9 nodes</text>
+<rect x="764" y="164" width="496" height="298" fill="#f6f8fb" stroke="#b6c1d1" stroke-width="1.4" rx="16" stroke-dasharray="7 6"/>
+<rect x="778" y="177" width="16" height="16" fill="#edf9f6" stroke="#c5ede3" stroke-width="1" rx="3.84"/><text x="786" y="187.88" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="7.04" font-weight="600" text-anchor="middle" fill="#ace4d7">SE</text>
+<text x="802" y="191" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="12" font-weight="600" fill="#334155">10.10.20.0/24</text>
+<text x="905.6" y="191" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9.5" fill="#6b7a8f">3 nodes</text>
+<path d="M 268 34 H 334.5 Q 338 34 338 30.5 V 30.5 Q 338 27 341.5 27 H 408" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
+<path d="M 564 27 H 606 Q 606 27 606 27 V 27 Q 606 27 606 27 H 648" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
+<path d="M 564 27 H 280 Q 294 27 294 41 V 266 Q 294 280 308 280 H 24" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
+<path d="M 564 27 H 396 Q 410 27 410 41 V 266 Q 410 280 424 280 H 256" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
+<path d="M 564 27 H 512 Q 526 27 526 41 V 266 Q 526 280 540 280 H 488" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
+<path d="M 564 27 H 280 Q 294 27 294 41 V 376 Q 294 390 308 390 H 24" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
+<path d="M 564 27 H 396 Q 410 27 410 41 V 376 Q 410 390 424 390 H 256" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
+<path d="M 564 27 H 512 Q 526 27 526 41 V 376 Q 526 390 540 390 H 488" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
+<path d="M 564 27 H 280 Q 294 27 294 41 V 486 Q 294 500 308 500 H 24" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
+<path d="M 564 27 H 396 Q 410 27 410 41 V 486 Q 410 500 424 500 H 256" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
+<path d="M 564 27 H 512 Q 526 27 526 41 V 486 Q 526 500 540 500 H 488" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
+<path d="M 804 27 H 788 Q 796 27 796 35 V 272 Q 796 280 804 280 H 788" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
+<path d="M 804 27 H 898 Q 912 27 912 41 V 266 Q 912 280 926 280 H 1020" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
+<path d="M 804 27 H 788 Q 796 27 796 35 V 382 Q 796 390 804 390 H 788" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
+<rect x="0" y="0" width="268" height="68" fill="#1f2937" stroke="#0f172a" stroke-width="1.2" rx="12"/>
+<rect x="12" y="12" width="16" height="16" fill="#eff5ff" stroke="#cddeff" stroke-width="1" rx="3.84"/><text x="20" y="22.88" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="7.04" font-weight="600" text-anchor="middle" fill="#b6d0ff">CL</text>
+<text x="34" y="22" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="8.5" font-weight="600" fill="#7fe6c4">SCAN ORIGIN</text>
+<text x="12" y="40" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="9.5" fill="#f8fafc">nmap -sV -sC --traceroute -oX lab-scan.xm…</text>
+<text x="12" y="56" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9" fill="#9fb0c4">12 hosts</text>
+<rect x="408" y="0" width="156" height="54" fill="#eef2f7" stroke="#b6c1d1" stroke-width="1" rx="27"/>
+<rect x="420" y="19.5" width="15" height="15" fill="#e9f4ff" stroke="#b7dbff" stroke-width="1" rx="3.5999999999999996"/><text x="427.5" y="29.7" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="6.6" font-weight="600" text-anchor="middle" fill="#97ccff">RO</text>
+<text x="441" y="20" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="8" fill="#6b7a8f">hop 1</text>
+<text x="441" y="33" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="10" fill="#334155">10.0.0.1</text>
+<text x="441" y="44" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="7.5" fill="#6b7a8f">gw.lab.internal</text>
+<rect x="648" y="0" width="156" height="54" fill="#eef2f7" stroke="#b6c1d1" stroke-width="1" rx="27"/>
+<rect x="660" y="19.5" width="15" height="15" fill="#e9f4ff" stroke="#b7dbff" stroke-width="1" rx="3.5999999999999996"/><text x="667.5" y="29.7" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="6.6" font-weight="600" text-anchor="middle" fill="#97ccff">RO</text>
+<text x="681" y="20" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="8" fill="#6b7a8f">hop 2</text>
+<text x="681" y="33" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="10" fill="#334155">10.0.0.254</text>
+<rect x="24" y="232" width="216" height="96" fill="#ffffff" stroke="#f08c2e" stroke-width="1.6" rx="11"/>
+<rect x="35" y="242" width="20" height="20" fill="#e9f4ff" stroke="#b7dbff" stroke-width="1" rx="4.8"/><text x="45" y="255.6" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.8" font-weight="600" text-anchor="middle" fill="#97ccff">RO</text>
+<text x="63" y="255" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="11.5" font-weight="600" fill="#111827">10.0.0.1</text>
+<text x="63" y="266" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9" fill="#5a6a7d">gw.lab.internal</text>
+<circle cx="225" cy="247" r="3.4" fill="#f08c2e"/>
+<text x="35" y="283" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9.5" fill="#6b7a8f">4 open · Linux 5.4</text>
+<rect x="35" y="302" width="42.6" height="17" fill="rgba(240, 140, 46, 0.16)" stroke="rgba(240, 140, 46, 0.45)" stroke-width="1" rx="5"/>
+<text x="41" y="314" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.5" fill="#f08c2e">22 ssh</text>
+<rect x="83.6" y="302" width="22.2" height="17" fill="#eef2f7" stroke="#dde5ee" stroke-width="1" rx="5"/>
+<text x="89.6" y="314" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.5" fill="#334155">+3</text>
+<rect x="256" y="232" width="216" height="96" fill="#ffffff" stroke="#e5484d" stroke-width="1.6" rx="11"/>
+<rect x="267" y="242" width="20" height="20" fill="#edf9f6" stroke="#c5ede3" stroke-width="1" rx="4.8"/><text x="277" y="255.6" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.8" font-weight="600" text-anchor="middle" fill="#ace4d7">NA</text>
+<text x="295" y="255" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="11.5" font-weight="600" fill="#111827">10.0.0.5</text>
+<text x="295" y="266" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9" fill="#5a6a7d">nas.lab.internal</text>
+<circle cx="457" cy="247" r="3.4" fill="#e5484d"/>
+<text x="267" y="283" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9.5" fill="#6b7a8f">4 open · Linux 4.15</text>
+<rect x="267" y="302" width="42.6" height="17" fill="rgba(240, 140, 46, 0.16)" stroke="rgba(240, 140, 46, 0.45)" stroke-width="1" rx="5"/>
+<text x="273" y="314" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.5" fill="#f08c2e">22 ssh</text>
+<rect x="315.6" y="302" width="22.2" height="17" fill="#eef2f7" stroke="#dde5ee" stroke-width="1" rx="5"/>
+<text x="321.6" y="314" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.5" fill="#334155">+3</text>
+<rect x="488" y="232" width="216" height="96" fill="#ffffff" stroke="#f08c2e" stroke-width="1.6" rx="11"/>
+<g transform="translate(499 242) scale(0.83)"><path d="M13.983 11.078h2.119a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.119a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185m-2.954-5.43h2.118a.186.186 0 00.186-.186V3.574a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.185m0 2.716h2.118a.187.187 0 00.186-.186V6.29a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.887c0 .102.082.185.185.186m-2.93 0h2.12a.186.186 0 00.184-.186V6.29a.185.185 0 00-.185-.185H8.1a.185.185 0 00-.185.185v1.887c0 .102.083.185.185.186m-2.964 0h2.119a.186.186 0 00.185-.186V6.29a.185.185 0 00-.185-.185H5.136a.186.186 0 00-.186.185v1.887c0 .102.084.185.186.186m5.893 2.715h2.118a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.185m-2.93 0h2.12a.185.185 0 00.184-.185V9.006a.185.185 0 00-.184-.186h-2.12a.185.185 0 00-.184.185v1.888c0 .102.083.185.185.185m-2.964 0h2.119a.185.185 0 00.185-.185V9.006a.185.185 0 00-.184-.186h-2.12a.186.186 0 00-.186.186v1.887c0 .102.084.185.186.185m-2.92 0h2.12a.185.185 0 00.184-.185V9.006a.185.185 0 00-.184-.186h-2.12a.185.185 0 00-.184.185v1.888c0 .102.082.185.185.185M23.763 9.89c-.065-.051-.672-.51-1.954-.51-.338.001-.676.03-1.01.087-.248-1.7-1.653-2.53-1.716-2.566l-.344-.199-.226.327c-.284.438-.49.922-.612 1.43-.23.97-.09 1.882.403 2.661-.595.332-1.55.413-1.744.42H.751a.751.751 0 00-.75.748 11.376 11.376 0 00.692 4.062c.545 1.428 1.355 2.48 2.41 3.124 1.18.723 3.1 1.137 5.275 1.137.983.003 1.963-.086 2.93-.266a12.248 12.248 0 003.823-1.389c.98-.567 1.86-1.288 2.61-2.136 1.252-1.418 1.998-2.997 2.553-4.4h.221c1.372 0 2.215-.549 2.68-1.009.309-.293.55-.65.707-1.046l.098-.288Z" fill="#2496ed"/></g>
+<text x="527" y="255" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="11.5" font-weight="600" fill="#111827">10.0.0.10</text>
+<text x="527" y="266" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9" fill="#5a6a7d">build-01.lab.internal</text>
+<circle cx="689" cy="247" r="3.4" fill="#f08c2e"/>
+<text x="499" y="283" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9.5" fill="#6b7a8f">2 open · Linux 5.0</text>
+<rect x="499" y="302" width="42.6" height="17" fill="rgba(240, 140, 46, 0.16)" stroke="rgba(240, 140, 46, 0.45)" stroke-width="1" rx="5"/>
+<text x="505" y="314" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.5" fill="#f08c2e">22 ssh</text>
+<rect x="547.6" y="302" width="68.1" height="17" fill="rgba(240, 140, 46, 0.16)" stroke="rgba(240, 140, 46, 0.45)" stroke-width="1" rx="5"/>
+<text x="553.6" y="314" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.5" fill="#f08c2e">2375 docker</text>
+<rect x="24" y="342" width="216" height="96" fill="#ffffff" stroke="#f08c2e" stroke-width="1.6" rx="11"/>
+<rect x="35" y="352" width="20" height="20" fill="#fde7e2" stroke="#f8b0a3" stroke-width="1" rx="4.8"/><text x="45" y="365.6" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.8" font-weight="600" text-anchor="middle" fill="#f58d7a">GI</text>
+<text x="63" y="365" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="11.5" font-weight="600" fill="#111827">10.0.0.11</text>
+<text x="63" y="376" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9" fill="#5a6a7d">git.lab.internal</text>
+<circle cx="225" cy="357" r="3.4" fill="#f08c2e"/>
+<text x="35" y="393" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9.5" fill="#6b7a8f">2 open · Linux 5.0</text>
+<rect x="35" y="412" width="42.6" height="17" fill="rgba(240, 140, 46, 0.16)" stroke="rgba(240, 140, 46, 0.45)" stroke-width="1" rx="5"/>
+<text x="41" y="424" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.5" fill="#f08c2e">22 ssh</text>
+<rect x="83.6" y="412" width="57.9" height="17" fill="rgba(240, 140, 46, 0.16)" stroke="rgba(240, 140, 46, 0.45)" stroke-width="1" rx="5"/>
+<text x="89.6" y="424" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.5" fill="#f08c2e">3000 http</text>
+<rect x="256" y="342" width="216" height="96" fill="#ffffff" stroke="#e5484d" stroke-width="1.6" rx="11"/>
+<rect x="267" y="352" width="20" height="20" fill="#fdf2e8" stroke="#f8d5b6" stroke-width="1" rx="4.8"/><text x="277" y="365.6" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.8" font-weight="600" text-anchor="middle" fill="#f5c395">DA</text>
+<text x="295" y="365" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="11.5" font-weight="600" fill="#111827">10.0.0.20</text>
+<text x="295" y="376" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9" fill="#5a6a7d">db-01.lab.internal</text>
+<circle cx="457" cy="357" r="3.4" fill="#e5484d"/>
+<text x="267" y="393" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9.5" fill="#6b7a8f">2 open · Linux 4.15</text>
+<rect x="267" y="412" width="42.6" height="17" fill="rgba(240, 140, 46, 0.16)" stroke="rgba(240, 140, 46, 0.45)" stroke-width="1" rx="5"/>
+<text x="273" y="424" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.5" fill="#f08c2e">22 ssh</text>
+<rect x="315.6" y="412" width="63" height="17" fill="rgba(229, 72, 77, 0.16)" stroke="rgba(229, 72, 77, 0.45)" stroke-width="1" rx="5"/>
+<text x="321.6" y="424" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.5" fill="#e5484d">3306 mysql</text>
+<rect x="488" y="342" width="216" height="96" fill="#ffffff" stroke="#e5484d" stroke-width="1.6" rx="11"/>
+<rect x="499" y="352" width="20" height="20" fill="#fdf2e8" stroke="#f8d5b6" stroke-width="1" rx="4.8"/><text x="509" y="365.6" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.8" font-weight="600" text-anchor="middle" fill="#f5c395">DA</text>
+<text x="527" y="365" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="11.5" font-weight="600" fill="#111827">10.0.0.21</text>
+<text x="527" y="376" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9" fill="#5a6a7d">cache-01.lab.internal</text>
+<circle cx="689" cy="357" r="3.4" fill="#e5484d"/>
+<text x="499" y="393" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9.5" fill="#6b7a8f">2 open</text>
+<rect x="499" y="412" width="42.6" height="17" fill="rgba(240, 140, 46, 0.16)" stroke="rgba(240, 140, 46, 0.45)" stroke-width="1" rx="5"/>
+<text x="505" y="424" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.5" fill="#f08c2e">22 ssh</text>
+<rect x="547.6" y="412" width="63" height="17" fill="rgba(229, 72, 77, 0.16)" stroke="rgba(229, 72, 77, 0.45)" stroke-width="1" rx="5"/>
+<text x="553.6" y="424" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.5" fill="#e5484d">6379 redis</text>
+<rect x="24" y="452" width="216" height="96" fill="#ffffff" stroke="#e3c53d" stroke-width="1.6" rx="11"/>
+<rect x="35" y="462" width="20" height="20" fill="#f5f2ff" stroke="#e0d6ff" stroke-width="1" rx="4.8"/><text x="45" y="475.6" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.8" font-weight="600" text-anchor="middle" fill="#d2c3ff">PR</text>
+<text x="63" y="475" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="11.5" font-weight="600" fill="#111827">10.0.0.30</text>
+<text x="63" y="486" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9" fill="#5a6a7d">printer.lab.internal</text>
+<circle cx="225" cy="467" r="3.4" fill="#e3c53d"/>
+<text x="35" y="503" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9.5" fill="#6b7a8f">4 open · Brother printer</text>
+<rect x="35" y="522" width="47.7" height="17" fill="rgba(227, 197, 61, 0.16)" stroke="rgba(227, 197, 61, 0.45)" stroke-width="1" rx="5"/>
+<text x="41" y="534" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.5" fill="#e3c53d">80 http</text>
+<rect x="88.7" y="522" width="22.2" height="17" fill="#eef2f7" stroke="#dde5ee" stroke-width="1" rx="5"/>
+<text x="94.7" y="534" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.5" fill="#334155">+3</text>
+<rect x="256" y="452" width="216" height="96" fill="#ffffff" stroke="#e5484d" stroke-width="1.6" rx="11"/>
+<rect x="267" y="462" width="20" height="20" fill="#e8f3ff" stroke="#b4d7ff" stroke-width="1" rx="4.8"/><text x="277" y="475.6" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.8" font-weight="600" text-anchor="middle" fill="#92c5ff">WI</text>
+<text x="295" y="475" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="11.5" font-weight="600" fill="#111827">10.0.0.40</text>
+<text x="295" y="486" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9" fill="#5a6a7d">ws-office.lab.internal</text>
+<circle cx="457" cy="467" r="3.4" fill="#e5484d"/>
+<text x="267" y="503" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9.5" fill="#6b7a8f">3 open · Microsoft Windows</text>
+<rect x="267" y="522" width="57.9" height="17" fill="rgba(229, 72, 77, 0.16)" stroke="rgba(229, 72, 77, 0.45)" stroke-width="1" rx="5"/>
+<text x="273" y="534" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.5" fill="#e5484d">135 msrpc</text>
+<rect x="330.9" y="522" width="22.2" height="17" fill="#eef2f7" stroke="#dde5ee" stroke-width="1" rx="5"/>
+<text x="336.9" y="534" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.5" fill="#334155">+2</text>
+<rect x="488" y="452" width="216" height="96" fill="#ffffff" stroke="#e5484d" stroke-width="1.6" rx="11"/>
+<rect x="499" y="462" width="20" height="20" fill="#ffecf1" stroke="#ffc3d2" stroke-width="1" rx="4.8"/><text x="509" y="475.6" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.8" font-weight="600" text-anchor="middle" fill="#ffa9bf">IP</text>
+<text x="527" y="475" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="11.5" font-weight="600" fill="#111827">10.0.0.55</text>
+<text x="527" y="486" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9" fill="#5a6a7d">camera-north.lab.internal</text>
+<circle cx="689" cy="467" r="3.4" fill="#e5484d"/>
+<text x="499" y="503" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9.5" fill="#6b7a8f">2 open · embedded Linux</text>
+<rect x="499" y="522" width="57.9" height="17" fill="rgba(229, 72, 77, 0.16)" stroke="rgba(229, 72, 77, 0.45)" stroke-width="1" rx="5"/>
+<text x="505" y="534" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.5" fill="#e5484d">23 telnet</text>
+<rect x="562.9" y="522" width="52.8" height="17" fill="#eef2f7" stroke="#dde5ee" stroke-width="1" rx="5"/>
+<text x="568.9" y="534" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.5" fill="#334155">554 rtsp</text>
+<rect x="788" y="232" width="216" height="96" fill="#ffffff" stroke="#f08c2e" stroke-width="1.6" rx="11"/>
+<rect x="799" y="242" width="20" height="20" fill="#e9f8f3" stroke="#b7ead8" stroke-width="1" rx="4.8"/><text x="809" y="255.6" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.8" font-weight="600" text-anchor="middle" fill="#97e0c6">WE</text>
+<text x="827" y="255" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="11.5" font-weight="600" fill="#111827">10.10.20.1</text>
+<text x="827" y="266" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9" fill="#5a6a7d">edge-01.lab.internal</text>
+<circle cx="989" cy="247" r="3.4" fill="#f08c2e"/>
+<text x="799" y="283" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9.5" fill="#6b7a8f">2 open</text>
+<rect x="799" y="302" width="42.6" height="17" fill="rgba(240, 140, 46, 0.16)" stroke="rgba(240, 140, 46, 0.45)" stroke-width="1" rx="5"/>
+<text x="805" y="314" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.5" fill="#f08c2e">22 ssh</text>
+<rect x="847.6" y="302" width="78.3" height="17" fill="rgba(240, 140, 46, 0.16)" stroke="rgba(240, 140, 46, 0.45)" stroke-width="1" rx="5"/>
+<text x="853.6" y="314" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.5" fill="#f08c2e">8443 ssl/http</text>
+<rect x="1020" y="232" width="216" height="96" fill="#ffffff" stroke="#e3c53d" stroke-width="1.6" rx="11"/>
+<rect x="1031" y="242" width="20" height="20" fill="#ebfcf5" stroke="#bef4df" stroke-width="1" rx="4.8"/><text x="1041" y="255.6" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.8" font-weight="600" text-anchor="middle" fill="#a1efd0">VP</text>
+<text x="1059" y="255" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="11.5" font-weight="600" fill="#111827">10.10.20.14</text>
+<text x="1059" y="266" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9" fill="#5a6a7d">vpn-01.lab.internal</text>
+<circle cx="1221" cy="247" r="3.4" fill="#e3c53d"/>
+<text x="1031" y="283" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9.5" fill="#6b7a8f">2 open</text>
+<rect x="1031" y="302" width="73.2" height="17" fill="rgba(227, 197, 61, 0.16)" stroke="rgba(227, 197, 61, 0.45)" stroke-width="1" rx="5"/>
+<text x="1037" y="314" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.5" fill="#e3c53d">443 ssl/http</text>
+<rect x="1110.2" y="302" width="73.2" height="17" fill="#eef2f7" stroke="#dde5ee" stroke-width="1" rx="5"/>
+<text x="1116.2" y="314" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.5" fill="#334155">1194 openvpn</text>
+<rect x="788" y="342" width="216" height="96" fill="#ffffff" stroke="#f08c2e" stroke-width="1.6" rx="11"/>
+<rect x="799" y="352" width="20" height="20" fill="#e9f8f3" stroke="#b7ead8" stroke-width="1" rx="4.8"/><text x="809" y="365.6" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.8" font-weight="600" text-anchor="middle" fill="#97e0c6">WE</text>
+<text x="827" y="365" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="11.5" font-weight="600" fill="#111827">10.10.20.31</text>
+<text x="827" y="376" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9" fill="#5a6a7d">ci-runner.lab.internal</text>
+<circle cx="989" cy="357" r="3.4" fill="#f08c2e"/>
+<text x="799" y="393" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9.5" fill="#6b7a8f">2 open · Linux 5.15</text>
+<rect x="799" y="412" width="42.6" height="17" fill="rgba(240, 140, 46, 0.16)" stroke="rgba(240, 140, 46, 0.45)" stroke-width="1" rx="5"/>
+<text x="805" y="424" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.5" fill="#f08c2e">22 ssh</text>
+<rect x="847.6" y="412" width="57.9" height="17" fill="rgba(240, 140, 46, 0.16)" stroke="rgba(240, 140, 46, 0.45)" stroke-width="1" rx="5"/>
+<text x="853.6" y="424" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="8.5" fill="#f08c2e">8080 http</text>
+</g>
+</svg>

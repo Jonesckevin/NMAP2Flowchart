@@ -11,6 +11,7 @@
  *   $env:N2F_GOLDEN='1'; npm run test:doc   # rewrite the exporter goldens
  */
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdir, readdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,6 +25,16 @@ const OUT_DIR = path.join(ROOT, 'node_modules', '.tmp-doc-tests');
 const extra = process.argv.slice(2);
 
 async function main() {
+  // A checkout without the suite is a repository mistake, not a test failure: say
+  // so instead of failing on a bare ENOENT from readdir.
+  if (!existsSync(TEST_DIR)) {
+    throw new Error(
+      `${path.relative(process.cwd(), TEST_DIR)} is missing – the pure-core suite ` +
+        '(tests, fixtures and helpers) is not in this checkout. It is versioned: make sure ' +
+        '`App/test` is committed and not ignored (`.gitignore`).',
+    );
+  }
+
   const entries = (await readdir(TEST_DIR))
     .filter((name) => name.endsWith('.test.mjs'))
     .sort()

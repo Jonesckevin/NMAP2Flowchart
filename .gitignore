@@ -1,0 +1,65 @@
+README2.md
+ROADMAP.md
+# Dependencies
+node_modules/
+AGENTS.md
+
+# The GitHub Pages edition is its own repository (nested checkout, not part of this one)
+/n2f/
+
+# Build output
+dist/
+dist-ssr/
+*.tsbuildinfo
+
+# Offline single-executable build: intermediates and artifacts
+/App/build/
+/release/
+
+# Vite / tooling caches
+.vite/
+.eslintcache
+.oxlintcache
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Local environment: compose port overrides and any other secrets
+.env
+.env.*
+!.env.example
+
+# Local nmap output: real network scans stay on the machine they came from
+/*.xml
+*.nmap
+scans/
+
+# Local accounts database from `npm run api` (NMAP_DATA_DIR=data)
+/data/
+/App/data/
+*.db
+*.db-wal
+*.db-shm
+
+# Editor and OS files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Test and scratch output
+coverage/
+.tmp-test/
+*.local

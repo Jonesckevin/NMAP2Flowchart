@@ -1,3 +1,13 @@
 # Shell scripts must stay LF on checkout (core.autocrlf would break them).
 *.sh text eol=lf
+
+# Workflows and Node scripts run by the release job are bash/Node input: a stray
+# CR breaks `set -euo pipefail` and shebang lines in the runner.
+*.yml text eol=lf
+*.mjs text eol=lf
+
 *.ps1 text eol=crlf
+
+# Exporter goldens are compared byte-for-byte by App/test/export.test.mjs: git must
+# never rewrite their line endings on the way in or out.
+App/test/fixtures/** -text
