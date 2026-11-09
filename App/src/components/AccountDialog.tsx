@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import type { DiagramDoc } from '../doc/types';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 import type { AccountController } from '../account/useAccount';
 import type { ProjectDetail, ProjectSummary } from '../account/types';
-import type { DiagramDoc } from '../doc/types';
 
 type AccountDialogProps = {
   account: AccountController;
@@ -455,6 +456,7 @@ function ProjectsView({
 
 export function AccountDialog({ account, open, onClose, doc, onOpenProject, onShareProject }: AccountDialogProps) {
   const dialogRef = useRef<HTMLElement>(null);
+  useDialogFocus(dialogRef, open);
   const closeRef = useRef(onClose);
   const clearFeedback = account.clearFeedback;
 

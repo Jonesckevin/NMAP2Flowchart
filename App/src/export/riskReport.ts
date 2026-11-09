@@ -1,4 +1,5 @@
 import type { RiskSummary } from '../doc/risk';
+import { csvCell } from './text';
 
 export type RiskReportScope = 'view' | 'diagram';
 
@@ -46,11 +47,6 @@ export function riskReportRows(summary: RiskSummary): RiskReportRow[] {
   }
   return rows;
 }
-
-const csvCell = (value: string | number) => {
-  const text = String(value ?? '');
-  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-};
 
 export function toRiskCsv(summary: RiskSummary, meta: RiskReportMeta): string {
   const header = ['level', 'priority', 'color', 'port', 'service', 'host', 'hostname', 'layer'];

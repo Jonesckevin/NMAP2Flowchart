@@ -9,6 +9,7 @@ import {
   type RiskSummary,
 } from '../doc/risk';
 import type { RiskReportScope } from '../export/riskReport';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 
 type RiskSummaryDialogProps = {
   open: boolean;
@@ -18,7 +19,7 @@ type RiskSummaryDialogProps = {
   /** Which layer supplied `policy`. */
   policyScope: RiskScope;
   onSelectNode: (nodeId: string) => void;
-  /** Receives exactly what the panel is listing, filter included. */
+  /** Writes the report the panel is showing, filter and scope included. */
   onExport: (format: 'csv' | 'json', summary: RiskSummary, scope: RiskReportScope, scopeNote: string) => void;
 };
 
@@ -59,12 +60,13 @@ function RiskSummaryPanel(props: Omit<RiskSummaryDialogProps, 'open'> & { doc: D
   const { onClose, doc, policy, policyScope, onSelectNode, onExport } = props;
   const dialogRef = useRef<HTMLElement>(null);
   const closeRef = useRef(onClose);
+  useDialogFocus(dialogRef);
   useEffect(() => {
     closeRef.current = onClose;
   }, [onClose]);
 
-  const [scope, setScope] = useState<RiskReportScope>('view');
   const [query, setQuery] = useState('');
+  const [format, setFormat] = useState<'csv' | 'json'>('csv');
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
@@ -89,10 +91,7 @@ function RiskSummaryPanel(props: Omit<RiskSummaryDialogProps, 'open'> & { doc: D
   );
   const allNodes = useMemo(() => doc.nodes.filter((node) => node.host), [doc]);
 
-  const full = useMemo(
-    () => riskSummary(scope === 'view' ? viewNodes : allNodes, policy, layers),
-    [scope, viewNodes, allNodes, policy, layers],
-  );
+  const full = useMemo(() => riskSummary(viewNodes, policy, layers), [viewNodes, policy, layers]);
   const shown = useMemo(() => filterSummary(full, query), [full, query]);
 
   const filtered = query.trim().length > 0;
@@ -107,7 +106,6 @@ function RiskSummaryPanel(props: Omit<RiskSummaryDialogProps, 'open'> & { doc: D
       }
     : { hosts: full.hosts, open: full.open, ports: full.ports };
   const scopeNote = (() => {
-    if (scope === 'diagram') return 'whole diagram (hidden cards included)';
     const hidden = allNodes.length - viewNodes.length;
     const focus = doc.focusedLayerId ? layers.get(doc.focusedLayerId)?.name : null;
     const parts: string[] = [];
@@ -115,6 +113,25 @@ function RiskSummaryPanel(props: Omit<RiskSummaryDialogProps, 'open'> & { doc: D
     if (hidden > 0) parts.push(`${hidden} card${hidden === 1 ? '' : 's'} hidden`);
     return parts.length > 0 ? `current view (${parts.join(' · ')})` : 'current view (everything is visible)';
   })();
+
+  /**
+   * Two explicit exports instead of a scope switch: "current view" is what the
+   * panel is listing (canvas visibility *and* the filter), "all" is every card in
+   * the document. The filter is the reason the report is exported from here.
+   */
+  const exportReport = (scope: RiskReportScope) => {
+    if (scope === 'view') {
+      const note = filtered ? `${scopeNote} · filter “${query.trim()}”` : scopeNote;
+      onExport(format, shown, 'view', note);
+      return;
+    }
+    onExport(
+      format,
+      riskSummary(allNodes, policy, layers),
+      'diagram',
+      'whole diagram (hidden cards included)',
+    );
+  };
 
   const toggle = (key: string) =>
     setExpanded((current) => {
@@ -165,26 +182,6 @@ function RiskSummaryPanel(props: Omit<RiskSummaryDialogProps, 'open'> & { doc: D
           </button>
         </div>
 
-        <div className="risk-scope" role="radiogroup" aria-label="Which cards to summarise">
-          <button
-            type="button"
-            role="radio"
-            aria-checked={scope === 'view'}
-            className={`risk-scope__option${scope === 'view' ? ' is-on' : ''}`}
-            onClick={() => setScope('view')}
-          >
-            This view
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={scope === 'diagram'}
-            className={`risk-scope__option${scope === 'diagram' ? ' is-on' : ''}`}
-            onClick={() => setScope('diagram')}
-          >
-            Whole diagram
-          </button>
-        </div>
         <p className="dialog__note dialog__note--small">
           {scopeNote} · levels from {RISK_SCOPE_LABEL[policyScope]}
         </p>
@@ -226,7 +223,7 @@ function RiskSummaryPanel(props: Omit<RiskSummaryDialogProps, 'open'> & { doc: D
             <p className="dialog__note">
               {filtered
                 ? 'Nothing matches that filter.'
-                : `No flagged ports in the ${scope === 'view' ? 'current view' : 'diagram'}.`}
+                : 'No flagged ports in the current view.'}
             </p>
           )}
           {shown.levels.map((entry) => {
@@ -323,15 +320,38 @@ function RiskSummaryPanel(props: Omit<RiskSummaryDialogProps, 'open'> & { doc: D
 
         <div className="dialog__actions risk-summary__actions">
           <span className="risk-summary__footnote">
-            Exports follow this {filtered ? 'filter and scope' : 'scope'}
-            {filtered ? ` (${query.trim()})` : ''} · one row per flagged card and port.
+            {filtered
+              ? `Current view follows “${query.trim()}” · one row per flagged card and port.`
+              : 'One row per flagged card and port.'}
           </span>
-          <button type="button" className="btn btn--ghost" onClick={() => onExport('json', shown, scope, scopeNote)}>
-            Export JSON
-          </button>
-          <button type="button" className="btn btn--accent" onClick={() => onExport('csv', shown, scope, scopeNote)}>
-            Export CSV
-          </button>
+          <div className="risk-export">
+            <div className="risk-export__format" role="radiogroup" aria-label="Report format">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={format === 'csv'}
+                className={`risk-export__option${format === 'csv' ? ' is-on' : ''}`}
+                onClick={() => setFormat('csv')}
+              >
+                CSV
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={format === 'json'}
+                className={`risk-export__option${format === 'json' ? ' is-on' : ''}`}
+                onClick={() => setFormat('json')}
+              >
+                JSON
+              </button>
+            </div>
+            <button type="button" className="btn btn--accent" onClick={() => exportReport('view')}>
+              Export current view
+            </button>
+            <button type="button" className="btn btn--ghost" onClick={() => exportReport('diagram')}>
+              Export all
+            </button>
+          </div>
         </div>
       </section>
     </div>,

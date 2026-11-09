@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { COMMON_PORTS, MAX_RISK_LEVELS, hexToRgba, levelForPort, type RiskLevel, type RiskPolicy } from '../doc/risk';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 
 type CommonPortsDialogProps = {
   open: boolean;
@@ -29,6 +30,7 @@ function CommonPortsPanel({
   onAddPort,
 }: Omit<CommonPortsDialogProps, 'open'>) {
   const dialogRef = useRef<HTMLElement>(null);
+  useDialogFocus(dialogRef);
   const [query, setQuery] = useState('');
   const closeRef = useRef(onClose);
   useEffect(() => {

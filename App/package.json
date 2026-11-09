@@ -14,12 +14,16 @@
     "preview": "vite preview",
     "api": "node server/index.mjs",
     "test:api": "node --test server/api.test.mjs server/static.test.mjs server/shared.test.mjs server/share.test.mjs server/store.test.mjs server/log.test.mjs",
+    "test:doc": "node scripts/run-doc-tests.mjs",
+    "test": "npm run test:api && npm run test:doc",
     "standalone": "node scripts/build-standalone.mjs",
     "standalone:all": "node scripts/build-standalone.mjs --target all",
     "standalone:portable": "node scripts/build-standalone.mjs --portable",
     "standalone:bundle": "node scripts/build-standalone.mjs --bundle-only",
     "standalone:shared": "node scripts/build-standalone.mjs --shared",
-    "standalone:smoke": "node scripts/smoke-standalone.mjs"
+    "standalone:smoke": "node scripts/smoke-standalone.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "brand:assets": "node scripts/brand-assets.mjs"
   },
   "dependencies": {
     "@xyflow/react": "^12.12.0",
@@ -34,6 +38,7 @@
     "@vitejs/plugin-react": "^6.1.2",
     "esbuild": "^0.28.2",
     "oxlint": "^1.89.0",
+    "playwright": "^1.65.0",
     "postject": "^1.0.0-alpha.6",
     "typescript": "~7.0.2",
     "vite": "^8.3.5"

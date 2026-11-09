@@ -1,12 +1,12 @@
-import { isLayerVisible, layerMap, nodeTitle, edgeLine, edgePath, type DiagramDoc, type DiagramNode } from '../doc/types';
-import { absolutePosition, measureSection } from '../doc/measure';
+import { nodeTitle, type DiagramDoc, type DiagramNode } from '../doc/types';
 import { iconEmoji } from '../icons/registry';
 import { portSummaryOr } from '../model/types';
 import { nodeRisk, type RiskPolicy } from '../doc/risk';
+import { buildScene } from '../graph/scene';
 import { HOP_H, HOP_W, HOST_H, HOST_W, NOTE_H, NOTE_W, ORIGIN_H, ORIGIN_W } from '../graph/layout';
+import { escapeXml } from './text';
 
-const esc = (value: string) =>
-  value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const esc = escapeXml;
 
 const cellId = (id: string) => `c_${id.replace(/[^0-9a-zA-Z]+/g, '_')}`;
 
@@ -71,38 +71,33 @@ function hostLabel(node: DiagramNode, riskPolicy: RiskPolicy): string {
 }
 
 export function toDrawio(doc: DiagramDoc, riskPolicy: RiskPolicy): string {
-  const layers = layerMap(doc.layers);
-  const byId = new Map(doc.nodes.map((node) => [node.id, node]));
-  const visible = doc.nodes.filter((node) => isLayerVisible(layers, node.layerId, doc.focusedLayerId));
-  const visibleIds = new Set(visible.map((node) => node.id));
+  const scene = buildScene(doc, riskPolicy);
   const cells: string[] = [];
   let maxX = 0;
   let maxY = 0;
 
-  for (const section of visible.filter((node) => node.kind === 'section')) {
-    const children = visible.filter((node) => node.parentId === section.id);
-    const { w, h } = measureSection(section, children);
-    const pos = absolutePosition(section, byId);
-    maxX = Math.max(maxX, pos.x + w);
-    maxY = Math.max(maxY, pos.y + h);
+  for (const section of scene.sections) {
+    const { w, h } = section.box;
+    maxX = Math.max(maxX, section.box.x + w);
+    maxY = Math.max(maxY, section.box.y + h);
     cells.push(
       vertex(
-        cellId(section.id),
-        `<b>${esc(iconEmoji(section.icon))} ${esc(nodeTitle(section))}</b>`,
-        withAccent(SECTION_STYLE, section.accent),
-        pos.x,
-        pos.y,
+        cellId(section.node.id),
+        `<b>${esc(iconEmoji(section.node.icon))} ${esc(nodeTitle(section.node))}</b>`,
+        withAccent(SECTION_STYLE, section.node.accent),
+        section.box.x,
+        section.box.y,
         w,
         h,
       ),
     );
   }
 
-  for (const node of visible) {
-    if (node.kind === 'section') continue;
-    const pos = absolutePosition(node, byId);
+  for (const item of scene.cards) {
+    const node = item.node;
+    const pos = item.box;
     if (node.kind === 'host') {
-      const risk = nodeRisk(node.host, riskPolicy);
+      const risk = item.risk;
       const base = withAccent(HOST_STYLE, node.accent);
       // The level colour outranks a hand-picked accent, matching the canvas.
       const style = risk ? `${withAccent(base, risk.color)}strokeWidth=2;` : base;
@@ -175,10 +170,9 @@ export function toDrawio(doc: DiagramDoc, riskPolicy: RiskPolicy): string {
     }
   }
 
-  for (const link of doc.edges) {
-    if (!visibleIds.has(link.source) || !visibleIds.has(link.target)) continue;
+  for (const { edge: link, line, path } of scene.edges) {
     const base = link.kind === 'route' ? ROUTE_EDGE : LINK_EDGE;
-    const style = `${PATH_STYLE[edgePath(link)]}${base}${DASH_STYLE[edgeLine(link)] ?? ''}`;
+    const style = `${PATH_STYLE[path]}${base}${DASH_STYLE[line] ?? ''}`;
     cells.push(edge(cellId(link.id), cellId(link.source), cellId(link.target), style, link.label));
   }
 

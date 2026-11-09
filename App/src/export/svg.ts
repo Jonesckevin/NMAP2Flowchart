@@ -1,18 +1,14 @@
 import {
-  edgeLine,
-  edgePath,
-  isLayerVisible,
-  layerMap,
   nodeTitle,
   type DiagramDoc,
-  type DiagramNode,
   type EdgePath,
 } from '../doc/types';
-import { absolutePosition, measureSection, nodeSize } from '../doc/measure';
+import { buildScene } from '../graph/scene';
 import { HOP_H } from '../graph/layout';
 import { iconById } from '../icons/registry';
 import { openPorts } from '../model/types';
-import { hexToRgba, levelForPort, nodeRisk, type RiskPolicy } from '../doc/risk';
+import { hexToRgba, levelForPort, type RiskPolicy } from '../doc/risk';
+import { escapeXml } from './text';
 
 
 export type SvgExport = { svg: string; width: number; height: number };
@@ -49,8 +45,7 @@ const INK = {
 const SANS = "'Inter', 'Segoe UI', Helvetica, Arial, sans-serif";
 const MONO = "'JetBrains Mono', Consolas, 'Courier New', monospace";
 
-const esc = (value: string) =>
-  value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const esc = escapeXml;
 
 const round = (value: number) => Math.round(value * 100) / 100;
 
@@ -176,61 +171,24 @@ function iconMarkup(id: string | undefined, x: number, y: number, size: number):
   ].join('');
 }
 
-function visibleNodes(doc: DiagramDoc): DiagramNode[] {
-  const layers = layerMap(doc.layers);
-  const drawable = (node: DiagramNode) => isLayerVisible(layers, node.layerId, doc.focusedLayerId);
-  const byId = new Map(doc.nodes.map((node) => [node.id, node]));
-
-  const shown = new Set<string>();
-  for (const node of doc.nodes) {
-    if (node.kind === 'section' && drawable(node)) shown.add(node.id);
-  }
-  for (const node of doc.nodes) {
-    if (node.kind === 'section') continue;
-    if (node.parentId) {
-      const parent = byId.get(node.parentId);
-      if (parent?.kind === 'section' && (parent.collapsed || !shown.has(parent.id))) continue;
-    }
-    if (drawable(node)) shown.add(node.id);
-  }
-  return doc.nodes.filter((node) => shown.has(node.id));
-}
-
 export function toSvg(doc: DiagramDoc, riskPolicy: RiskPolicy): SvgExport {
-  const byId = new Map(doc.nodes.map((node) => [node.id, node]));
-  const visible = visibleNodes(doc);
-  const shown = new Set(visible.map((node) => node.id));
-
-  const box = (node: DiagramNode) => {
-    const pos = absolutePosition(node, byId);
-    const children = node.kind === 'section' ? visible.filter((child) => child.parentId === node.id) : [];
-    const size = node.kind === 'section' ? measureSection(node, children) : nodeSize(node);
-    return { x: pos.x, y: pos.y, w: size.w, h: size.h };
-  };
-
-  let maxX = 0;
-  let maxY = 0;
-  for (const node of visible) {
-    const b = box(node);
-    maxX = Math.max(maxX, b.x + b.w);
-    maxY = Math.max(maxY, b.y + b.h);
-  }
-  const width = Math.max(320, maxX + MARGIN * 2);
-  const height = Math.max(200, maxY + MARGIN * 2);
+  const scene = buildScene(doc, riskPolicy);
+  const width = Math.max(320, scene.bounds.x + scene.bounds.w + MARGIN * 2);
+  const height = Math.max(200, scene.bounds.y + scene.bounds.h + MARGIN * 2);
 
   const body: string[] = [];
 
-  for (const section of visible.filter((node) => node.kind === 'section')) {
-    const b = box(section);
-    const count = visible.filter((child) => child.parentId === section.id).length;
-    const accent = section.accent ?? INK.sectionStroke;
+  for (const section of scene.sections) {
+    const b = section.box;
+    const count = section.children.length;
+    const accent = section.node.accent ?? INK.sectionStroke;
     body.push(rect(b.x, b.y, b.w, b.h, { fill: INK.sectionFill, stroke: accent, sw: 1.4, rx: 16, dash: '7 6' }));
-    body.push(iconMarkup(section.icon ?? 'server', b.x + 14, b.y + 13, 16));
+    body.push(iconMarkup(section.node.icon ?? 'server', b.x + 14, b.y + 13, 16));
     body.push(
       text({
         x: b.x + 38,
         y: b.y + 27,
-        text: fit(nodeTitle(section), b.w - 140, 12, false),
+        text: fit(nodeTitle(section.node), b.w - 140, 12, false),
         size: 12,
         color: INK.sectionText,
         mono: true,
@@ -239,7 +197,7 @@ export function toSvg(doc: DiagramDoc, riskPolicy: RiskPolicy): SvgExport {
     );
     body.push(
       text({
-        x: b.x + 38 + textWidth(fit(nodeTitle(section), b.w - 140, 12, true), 12, true) + 10,
+        x: b.x + 38 + textWidth(fit(nodeTitle(section.node), b.w - 140, 12, true), 12, true) + 10,
         y: b.y + 27,
         text: `${count} nodes`,
         size: 9.5,
@@ -248,20 +206,15 @@ export function toSvg(doc: DiagramDoc, riskPolicy: RiskPolicy): SvgExport {
     );
   }
 
-  for (const edge of doc.edges) {
-    const source = byId.get(edge.source);
-    const target = byId.get(edge.target);
-    if (!source || !target || !shown.has(source.id) || !shown.has(target.id)) continue;
-    const a = box(source);
-    const b = box(target);
+  for (const { edge, source, target, line, path } of scene.edges) {
+    const a = source.box;
+    const b = target.box;
     const x1 = a.x + a.w;
     const y1 = a.y + a.h / 2;
     const x2 = b.x;
     const y2 = b.y + b.h / 2;
     const bend = Math.max(40, Math.abs(x2 - x1) * 0.45);
-    const style = edgeLine(edge);
-    const path = edgePath(edge);
-    const dash = style === 'solid' ? '' : style === 'dashed' ? '9 5' : '1.8 4.6';
+    const dash = line === 'solid' ? '' : line === 'dashed' ? '9 5' : '1.8 4.6';
     const stroke = edge.kind === 'route' ? INK.route : INK.link;
     const sw = edge.kind === 'route' ? 1.4 : 2;
     body.push(
@@ -283,14 +236,14 @@ export function toSvg(doc: DiagramDoc, riskPolicy: RiskPolicy): SvgExport {
     }
   }
 
-  for (const node of visible) {
-    if (node.kind === 'section') continue;
-    const b = box(node);
+  for (const item of scene.cards) {
+    const node = item.node;
+    const b = item.box;
 
     if (node.kind === 'host') {
       const host = node.host;
       const open = host ? openPorts(host) : [];
-      const risk = nodeRisk(host, riskPolicy);
+      const risk = item.risk;
       const stroke = risk?.color ?? node.accent ?? INK.cardStroke;
       body.push(
         rect(b.x, b.y, b.w, b.h, { fill: INK.card, stroke, sw: risk ? 1.6 : 1, rx: 11 }),

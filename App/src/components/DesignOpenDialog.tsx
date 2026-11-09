@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { designCounts, type DesignFile, type DesignRepair } from '../doc/designFile';
 import type { RiskPolicy } from '../doc/risk';
 import type { DiagramDoc } from '../doc/types';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 
 export type DesignPreview = {
   fileName: string;
@@ -36,6 +37,7 @@ function DesignOpenPanel({ preview, hasDoc, onCancel, onOpen }: DesignOpenDialog
   const counts = designCounts(doc);
   const [applyRisk, setApplyRisk] = useState(Boolean(design.risk));
   const dialogRef = useRef<HTMLElement>(null);
+  useDialogFocus(dialogRef);
 
   useEffect(() => {
     const timer = window.setTimeout(() => dialogRef.current?.querySelector<HTMLElement>('.btn--accent')?.focus(), 0);

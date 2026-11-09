@@ -1,0 +1,51 @@
+name: Smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  app:
+    name: Editor (lint, unit, browser)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: App/package-lock.json
+
+      - name: Install
+        working-directory: App
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: App
+        run: npx playwright install --with-deps chromium
+
+      - name: Lint
+        working-directory: App
+        run: npm run lint
+
+      - name: Documentation core tests
+        working-directory: App
+        run: npm run test:doc
+
+      - name: Build
+        working-directory: App
+        run: npm run build
+
+      - name: Browser smoke
+        working-directory: App
+        run: npm run smoke
+
+      - name: Accounts API tests
+        working-directory: App
+        run: npm run test:api

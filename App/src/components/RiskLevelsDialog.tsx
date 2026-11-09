@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import type { DiagramDoc } from '../doc/types';
 import type { NmapHost } from '../model/types';
 import { CommonPortsDialog } from './CommonPortsDialog';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 import {
   RISK_COLORS,
   RISK_SCOPE_LABEL,
@@ -53,6 +54,7 @@ function basePolicyFor(
 export function RiskLevelsDialog(props: RiskLevelsDialogProps) {
   const { open, onClose, doc, policy, scope, serverPolicy, canUseAccount } = props;
   const dialogRef = useRef<HTMLElement>(null);
+  useDialogFocus(dialogRef, open);
   const [editScope, setEditScope] = useState<EditScope>('diagram');
   const [draft, setDraft] = useState<RiskLevel[]>(() => cloneRiskPolicy(policy).levels);
   const [busy, setBusy] = useState(false);

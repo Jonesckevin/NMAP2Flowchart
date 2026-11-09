@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 
 import type { ProjectShare } from '../account/types';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 
 type ShareDialogProps = {
   open: boolean;
@@ -27,6 +28,8 @@ export function ShareDialog({ open, projectName, share, busy, onShare, onStop, o
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fieldRef = useRef<HTMLInputElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
+  useDialogFocus(sectionRef, open);
 
   if (!open) return null;
 
@@ -53,6 +56,7 @@ export function ShareDialog({ open, projectName, share, busy, onShare, onStop, o
       }}
     >
       <section
+        ref={sectionRef}
         className="dialog share-dialog"
         role="dialog"
         aria-modal="true"

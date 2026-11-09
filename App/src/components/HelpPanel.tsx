@@ -127,16 +127,24 @@ const TIP_GROUPS: { title: string; tips: Tip[] }[] = [
         what: 'Print-ready output on a white page: vector SVG, 300 dpi PNG, or one PDF page sized to the diagram for plotter prints.',
       },
       {
-        keys: 'Import / Open',
-        what: 'Every XML import previews first. Merge refreshes matching hosts and keeps the rest (missing hosts stay, flagged stale), Replace starts over, New layer puts the scan beside the diagram. All three are undoable. Open design file (.json) reopens a diagram saved here or elsewhere.',
+        keys: 'Import / Export',
+        what: 'One panel for files. Import / Open takes an nmap XML scan (reviewed before it lands, then Merge, Replace or New layer), adds scans as new layers, reopens a design file, starts a blank diagram, or loads the sample scan. Export writes the design file, Mermaid, draw.io, SVG, PNG or PDF, and states the scope first. On an empty canvas the button opens on Import; with a diagram open it opens on Export.',
       },
       {
-        keys: 'Export → Design file (.json)',
-        what: 'Saves the whole diagram – layers, positions, notes, connections and its risk levels – as one file another instance can open.',
+        keys: 'Save',
+        what: 'The shortcut beside the filter saves the whole diagram as a design file – the same export as Import / Export → Design file (.json).',
       },
       {
-        keys: 'Export menu',
-        what: 'The note at the top states the export scope before you pick a format – the focused layer, hidden nodes, and whether the canvas filter is ignored.',
+        keys: 'Export → design file',
+        what: 'The first row of the Export tab saves the whole diagram – layers, positions, notes, connections and its risk levels – as one file another instance can open.',
+      },
+      {
+        keys: 'Export tab',
+        what: 'The note at the top states the picture scope before you pick a format – the focused layer, hidden nodes, and whether the canvas filter is ignored.',
+      },
+      {
+        keys: 'Risk panel → Export',
+        what: 'The Risk panel lists the ports behind each level and honours its filter. Export current view writes exactly the rows the search left, and Export all writes every card in the diagram (hidden ones included), as CSV or JSON.',
       },
       {
         keys: 'Mermaid / draw.io',
@@ -149,6 +157,30 @@ const TIP_GROUPS: { title: string; tips: Tip[] }[] = [
       {
         keys: 'Share (account project)',
         what: 'Publish a project as a link – from the Share button, from ⋯ → Share “project”…, or from the Share action on a row in the project list. “Can edit” makes it a live room – everyone on the link sees your changes and you see theirs, with pointers and presence. “View only” gives the same room with the editor locked: no add buttons, no layer edits, exports only. New link retires the old one; Stop sharing switches it off.',
+      },
+      {
+        keys: 'Ctrl / Cmd + K',
+        what: 'Command palette: type what you want to do – add a host or note, focus a layer, fit, toggle snap or the legend, undo, open the risk summary or the export panel – and press Enter. Arrow keys move, Escape closes.',
+      },
+      {
+        keys: 'Drag a card',
+        what: 'Thin guides appear when the card’s left, centre or right edge (and its top, middle or bottom) lines up with another card, so a row of hosts can be straightened by eye. ⋯ → Re-flow positions redoes the whole layout.',
+      },
+      {
+        keys: 'Logo',
+        what: 'Click the logo to cycle the accent colour: green (the default), orange, then purple. It repaints the buttons, focus rings, links, the save meter, the canvas arrows and the logo itself, and the choice is remembered in this browser.',
+      },
+      {
+        keys: 'Sun / moon icon',
+        what: 'Switches the whole editor between the dark theme (default) and a light one whose diagram matches the white page the exports print. The icon shows the theme it switches to and the choice is remembered in this browser.',
+      },
+      {
+        keys: 'Recoverable error',
+        what: 'If the editor throws, it shows a page that names the failure and offers the last autosaved copy as a design file, a reload, or an empty canvas – so a broken panel cannot strand a diagram in browser storage.',
+      },
+      {
+        keys: 'Saved locally',
+        what: 'The chip beside the filter says whether this diagram is safe in this browser and opens a panel with the detail: where it is kept (IndexedDB, or the small localStorage fallback), how big the diagram is, how much room the site has left, and when it last saved. If a write cannot be made, the panel says so and offers the diagram as a download instead. Nothing is uploaded – Import / Export → Design file is how a copy leaves the machine.',
       },
       {
         keys: 'Account chip → Projects',

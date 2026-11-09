@@ -1,19 +1,17 @@
 import { MarkerType, type Edge, type Node, type XYPosition } from '@xyflow/react';
 import { type NmapHost } from '../model/types';
-import { hostMatchesRiskFilter, nodeRisk, type NodeRisk, type RiskPolicy } from '../doc/risk';
+import { hostMatchesRiskFilter, type NodeRisk, type RiskPolicy } from '../doc/risk';
 import {
   edgeLine,
   edgePath,
-  flattenLayers,
-  isLayerVisible,
-  layerMap,
   type DiagramDoc,
   type DiagramEdge,
   type DiagramNode,
   type EdgeKind,
 } from '../doc/types';
 import { HOP_H, HOP_W, HOST_H, HOST_W, NOTE_H, NOTE_W, ORIGIN_H, ORIGIN_W } from './layout';
-import { measureSection, sectionMinSize } from '../doc/measure';
+import { sectionMinSize } from '../doc/measure';
+import { buildScene } from './scene';
 
 export type AppNodeData = {
   node?: DiagramNode;
@@ -57,7 +55,7 @@ export type BuildOptions = {
 
 const ROUTE_STYLE = { stroke: '#3f5d7a', strokeWidth: 1.5 };
 const INTO_HOST_STYLE = { stroke: '#2b4459', strokeWidth: 1.1, opacity: 0.7 };
-const LINK_STYLE = { stroke: '#2fd6a5', strokeWidth: 1.8 };
+const LINK_STYLE = { stroke: 'var(--accent)', strokeWidth: 1.8 };
 
 const DASH: Record<string, string | undefined> = {
   solid: undefined,
@@ -151,46 +149,13 @@ export function buildRfGraph(
     onDelete,
   }: BuildOptions,
 ): { nodes: AppNode[]; edges: AppEdge[] } {
-  const layers = layerMap(doc.layers);
   const needle = query.trim().toLowerCase();
   const selectedNodes = new Set(selectedNodeIds);
   const selectedEdges = new Set(selectedEdgeIds);
 
-  const layerRank = new Map<string, number>();
-  flattenLayers(doc.layers).forEach(({ layer }, index) => layerRank.set(layer.id, index));
-  const layerCount = Math.max(1, doc.layers.length);
-  const stackOf = (node: DiagramNode) => {
-    const rank = layerRank.get(node.layerId) ?? 0;
-    const base = (layerCount - rank) * 10_000;
-    const band = node.kind === 'section' ? 0 : 1000;
-    return base + band + (node.z ?? 0);
-  };
-
-  const childrenOf = new Map<string, DiagramNode[]>();
-  for (const node of doc.nodes) {
-    if (!node.parentId) continue;
-    const bucket = childrenOf.get(node.parentId);
-    if (bucket) bucket.push(node);
-    else childrenOf.set(node.parentId, [node]);
-  }
-
-  const byId = new Map(doc.nodes.map((node) => [node.id, node]));
-  const drawable = (node: DiagramNode) => isLayerVisible(layers, node.layerId, doc.focusedLayerId);
-
-  const visible = new Set<string>();
-  for (const node of doc.nodes) {
-    if (node.kind !== 'section') continue;
-    if (drawable(node)) visible.add(node.id);
-  }
-  for (const node of doc.nodes) {
-    if (node.kind === 'section') continue;
-    if (node.parentId) {
-      const parent = byId.get(node.parentId);
-      if (parent?.kind === 'section' && (parent.collapsed || !visible.has(parent.id))) continue;
-    }
-    if (!drawable(node)) continue;
-    visible.add(node.id);
-  }
+  // Visibility, geometry and stacking belong to the scene, so the canvas and the
+  // exporters cannot drift apart about what is on the diagram.
+  const scene = buildScene(doc, riskPolicy);
 
   const nodes: AppNode[] = [];
   const ordered = [
@@ -199,25 +164,23 @@ export function buildRfGraph(
   ];
 
   for (const node of ordered) {
-    if (!visible.has(node.id)) continue;
-    const children = childrenOf.get(node.id) ?? [];
+    const item = scene.node(node.id);
+    if (!item) continue;
     const matches = !needle || matchesFilter(node, query, riskPolicy);
     const dimmed = needle.length > 0 && !matches;
     if (onlyMatches && needle && !matches) continue;
 
     if (node.kind === 'section') {
-      const visibleChildren = children.filter((child) => visible.has(child.id));
-      const { w: width, h: height } = measureSection(node, visibleChildren);
-      const min = sectionMinSize(visibleChildren);
+      const min = sectionMinSize(item.children);
       nodes.push({
         id: node.id,
         type: 'section',
         position: node.position,
         selected: selectedNodes.has(node.id),
-        style: { width, height },
+        style: { width: item.box.w, height: item.box.h },
         data: {
           node,
-          childCount: children.length,
+          childCount: item.childCount,
           dimmed,
           dropTarget: dropSectionId === node.id,
           minW: node.manualSize ? 160 : min.w,
@@ -226,7 +189,7 @@ export function buildRfGraph(
           onTidy: onSectionTidy,
           onResize: onSectionResize,
         },
-        zIndex: stackOf(node),
+        zIndex: item.z,
       });
       continue;
     }
@@ -240,7 +203,7 @@ export function buildRfGraph(
       data: {
         node,
         host: node.host,
-        risk: node.kind === 'host' ? nodeRisk(node.host, riskPolicy) : null,
+        risk: item.risk,
         dimmed,
         editing: editingNoteId === node.id,
         onToggle,
@@ -256,7 +219,7 @@ export function buildRfGraph(
         ...common,
         type: 'host',
         style: { width: HOST_W, height: HOST_H },
-        zIndex: stackOf(node),
+        zIndex: item.z,
         hidden: false,
       });
     } else if (node.kind === 'note') {
@@ -264,28 +227,28 @@ export function buildRfGraph(
         ...common,
         type: 'note',
         style: { width: node.size?.w ?? NOTE_W, height: node.size?.h ?? NOTE_H },
-        zIndex: stackOf(node),
+        zIndex: item.z,
       });
     } else if (node.kind === 'hop') {
       nodes.push({
         ...common,
         type: 'hop',
         style: { width: HOP_W, height: HOP_H },
-        zIndex: stackOf(node),
+        zIndex: item.z,
       });
     } else {
       nodes.push({
         ...common,
         type: 'origin',
         style: { width: ORIGIN_W, height: ORIGIN_H },
-        zIndex: stackOf(node),
+        zIndex: item.z,
       });
     }
   }
 
   const shown = new Set(nodes.map((node) => node.id));
   const edges: AppEdge[] = [];
-  for (const edge of doc.edges) {
+  for (const { edge } of scene.edges) {
     if (!shown.has(edge.source) || !shown.has(edge.target)) continue;
     edges.push(toRfEdge(edge, selectedEdges.has(edge.id)));
   }
@@ -324,7 +287,7 @@ export function toRfEdge(edge: DiagramEdge, selected: boolean): AppEdge {
     interactionWidth: 26,
     data: { kind: edge.kind, label: edge.label },
     style: { ...LINK_STYLE, ...round, strokeDasharray: dash },
-    markerEnd: { type: MarkerType.ArrowClosed, color: '#2fd6a5', width: 16, height: 16 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--accent)', width: 16, height: 16 },
     label: edge.label,
     labelStyle: LABEL_STYLE,
     labelBgStyle: LABEL_BG_STYLE,

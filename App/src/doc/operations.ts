@@ -308,7 +308,12 @@ export function deleteLayer(doc: DiagramDoc, id: string, mode: 'keep' | 'all'): 
   if (!layer || doc.layers.length <= 1) return doc;
 
   const doomed = new Set([id, ...descendantLayerIds(doc.layers, id)]);
-  const fallback = layer.parentId && !doomed.has(layer.parentId) ? layer.parentId : MAIN_LAYER;
+  // Cards must land on a layer that still exists – deleting the layer they all
+  // sit on would otherwise point every node at a deleted id.
+  const fallback =
+    layer.parentId && !doomed.has(layer.parentId)
+      ? layer.parentId
+      : (doc.layers.find((item) => !doomed.has(item.id))?.id ?? MAIN_LAYER);
 
   const layers = doc.layers
     .filter((item) => !doomed.has(item.id))

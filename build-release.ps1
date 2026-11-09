@@ -16,6 +16,9 @@
     .\build-release.ps1 -SkipInstall   # node_modules is already up to date
 
 .EXAMPLE
+    .\build-release.ps1 -ForceInstall  # reinstall even when node_modules looks current
+
+.EXAMPLE
     .\build-release.ps1 -SkipPortable  # executables, app.cjs, shared.cjs and the plugin only
 
 .EXAMPLE
@@ -28,6 +31,8 @@
 param(
     # Skip `npm ci` when node_modules already matches package-lock.json.
     [switch]$SkipInstall,
+    # Reinstall even when node_modules looks current (npm ci deletes the folder first).
+    [switch]$ForceInstall,
     # Skip `npm run lint` and `npm run test:api`.
     [switch]$SkipChecks,
     [switch]$SkipExecutables,
@@ -138,7 +143,42 @@ if ($Clean -and (Test-Path $releaseDir)) {
 Push-Location $appDir
 try {
     if (-not $SkipInstall) {
-        Invoke-Step 'install dependencies (npm ci)' @('npm', 'ci')
+        # `npm ci` deletes node_modules before it reinstalls, and on Windows a single
+        # loaded .node file (a dev or preview server left running) makes that deletion
+        # fail with EPERM. Skip the reinstall when the tree already matches the lock
+        # file, and explain what to close when it really fails.
+        $lockFile = Join-Path $appDir 'package-lock.json'
+        $installStamp = Join-Path $appDir 'node_modules\.package-lock.json'
+        $current = (Test-Path -LiteralPath $installStamp) -and
+            ((Get-Item -LiteralPath $installStamp).LastWriteTimeUtc -ge (Get-Item -LiteralPath $lockFile).LastWriteTimeUtc)
+
+        if ($current -and -not $ForceInstall) {
+            Write-Host '==> install dependencies (up to date)' -ForegroundColor Cyan
+            Write-Host '    node_modules already matches package-lock.json – -ForceInstall reinstalls' -ForegroundColor DarkGray
+        } else {
+            try {
+                Invoke-Step 'install dependencies (npm ci)' @('npm', 'ci')
+            } catch {
+                Write-Host ''
+                Write-Host 'npm ci could not replace App/node_modules.' -ForegroundColor Yellow
+                Write-Host 'On Windows this usually means a node process still has a .node file open:' -ForegroundColor Yellow
+                try {
+                    Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
+                        Where-Object { $_.CommandLine -and $_.CommandLine -match 'vite|rollup|esbuild|standalone' } |
+                        Select-Object -First 5 |
+                        ForEach-Object {
+                            $cmd = ($_.CommandLine -replace '\s+', ' ')
+                            if ($cmd.Length -gt 110) { $cmd = $cmd.Substring(0, 110) + '…' }
+                            Write-Host ("    pid {0}  {1}" -f $_.ProcessId, $cmd) -ForegroundColor DarkYellow
+                        }
+                } catch {
+                    # Process inspection is a convenience, not a requirement.
+                }
+                Write-Host 'Close those (or the editor holding node_modules), then re-run – or use' -ForegroundColor Yellow
+                Write-Host '-SkipInstall when the dependencies are already current.' -ForegroundColor Yellow
+                throw
+            }
+        }
     }
     if (-not $SkipChecks) {
         Invoke-Step 'lint (oxlint)' @('npm', 'run', 'lint')

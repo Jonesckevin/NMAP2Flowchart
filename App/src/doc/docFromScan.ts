@@ -313,15 +313,18 @@ export type ImportEffect = {
   stale: number;
 };
 
-export function previewImport(
+/**
+ * Effect counts for all three import modes from a single layout pass: switching
+ * mode in the preview dialog is instant, and a big scan is only laid out once.
+ */
+export function scanEffects(
   doc: DiagramDoc | null,
   scan: NmapScan,
-  mode: ImportMode,
-): ImportEffect {
+): Record<ImportMode, ImportEffect> {
   const fresh = buildFromScan(scan).nodes;
-  if (!doc || mode !== 'merge') {
-    return { nodes: fresh.length, matched: 0, added: fresh.length, stale: 0 };
-  }
+  const freshOnly = { nodes: fresh.length, matched: 0, added: fresh.length, stale: 0 };
+  if (!doc) return { replace: freshOnly, layer: freshOnly, merge: freshOnly };
+
   const layerNodes = doc.nodes.filter((node) => node.layerId === MAIN_LAYER);
   const existing = new Set(layerNodes.map(identify));
   const seen = new Set(fresh.map(identify));
@@ -330,5 +333,18 @@ export function previewImport(
   const stale = layerNodes.filter(
     (node) => node.kind === 'host' && !seen.has(identify(node)),
   ).length;
-  return { nodes: fresh.length, matched, added: fresh.length - matched, stale };
+
+  return {
+    replace: freshOnly,
+    layer: freshOnly,
+    merge: { nodes: fresh.length, matched, added: fresh.length - matched, stale },
+  };
+}
+
+export function previewImport(
+  doc: DiagramDoc | null,
+  scan: NmapScan,
+  mode: ImportMode,
+): ImportEffect {
+  return scanEffects(doc, scan)[mode];
 }
