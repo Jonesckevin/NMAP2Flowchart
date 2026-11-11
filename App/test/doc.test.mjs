@@ -22,11 +22,24 @@ import {
   removeNodes,
   setNodeSection,
 } from '../src/doc/operations';
-import { MAIN_LAYER, NOTES_LAYER, nodeTitle } from '../src/doc/types';
+import { MAIN_LAYER, NOTES_LAYER, edgeArrow, edgeSides, nodeTitle } from '../src/doc/types';
+import { buildDesignFile, readDesignFile } from '../src/doc/designFile';
 import { HOST_H, HOST_W, NOTE_H, NOTE_W } from '../src/graph/layout';
 import { SAMPLE_FILE_NAME, SAMPLE_SCAN_XML } from '../src/data/sampleScan';
 
 const sampleScan = () => parseNmapXml(SAMPLE_SCAN_XML, SAMPLE_FILE_NAME);
+
+/** Two host cards the imports did not already connect, so a new link is really new. */
+const unconnectedPair = (doc) => {
+  const hosts = doc.nodes.filter((node) => node.kind === 'host');
+  const taken = new Set(doc.edges.flatMap((edge) => [`${edge.source}|${edge.target}`, `${edge.target}|${edge.source}`]));
+  for (const first of hosts) {
+    for (const second of hosts) {
+      if (first !== second && !taken.has(`${first.id}|${second.id}`)) return [first, second];
+    }
+  }
+  throw new Error('every pair is already connected');
+};
 
 const discoveryXml = (args = 'nmap -sn -oX ping.xml 10.0.0.0/24') =>
   `<?xml version="1.0"?>
@@ -64,6 +77,41 @@ test('a scan becomes a document with sections, cards and routes', () => {
   }
 });
 
+test('a scanned host that other traces pass through keeps one card', () => {
+  // 10.0.0.1 is both a probed host and the first hop of every other trace, and a
+  // target's own trace entry names the card itself. Both must not add a second
+  // card: the address is drawn once, and that card carries the route lane depth.
+  const scan = parseNmapXml(
+    `<?xml version="1.0"?>
+     <nmaprun scanner="nmap" args="nmap -sV --traceroute -oX traced.xml 10.0.0.0/24" version="7.95">
+       <host><status state="up"/><address addr="10.0.0.1" addrtype="ipv4"/>
+         <trace><hop ttl="1" ipaddr="10.0.0.1"/></trace></host>
+       <host><status state="up"/><address addr="10.0.0.5" addrtype="ipv4"/>
+         <trace><hop ttl="1" ipaddr="10.0.0.1"/><hop ttl="2" ipaddr="10.0.0.5"/></trace></host>
+       <host><status state="up"/><address addr="10.0.0.9" addrtype="ipv4"/>
+         <trace><hop ttl="1" ipaddr="10.0.0.1"/><hop ttl="2" ipaddr="10.0.0.254"/><hop ttl="3" ipaddr="10.0.0.9"/></trace></host>
+     </nmaprun>`,
+    'traced.xml',
+  );
+  const doc = createDocFromScan(scan);
+
+  const drawn = doc.nodes.filter((node) => node.kind === 'host' || node.kind === 'hop');
+  const addresses = drawn.map((node) => (node.kind === 'host' ? node.host.ip : node.address));
+  assert.deepEqual(addresses.filter((ip, index) => addresses.indexOf(ip) !== index), [], 'no address is drawn twice');
+
+  const gateway = drawn.find((node) => node.id === 'host:10.0.0.1');
+  assert.equal(gateway.kind, 'host');
+  assert.equal(gateway.depth, 1, 'the card is in the route lane');
+  assert.equal(gateway.icon, 'router', 'a card the traces pass through wears a network icon');
+  assert.ok(gateway.parentId, 'and still lives in its subnet frame');
+
+  // 10.0.0.254 is only ever a hop, so it stays a router card of the route lane.
+  assert.equal(drawn.find((node) => node.address === '10.0.0.254').kind, 'hop');
+
+  const originEdge = doc.edges.find((edge) => edge.source === 'origin');
+  assert.equal(originEdge.target, 'host:10.0.0.1', 'the route starts at the gateway card');
+});
+
 test('the same scan lays out identically every time', () => {
   assert.equal(JSON.stringify(createDocFromScan(sampleScan())), JSON.stringify(createDocFromScan(sampleScan())));
 });
@@ -79,6 +127,59 @@ test('discovery-only scans never grow ports in the diagram', () => {
   }
   const origin = doc.nodes.find((node) => node.kind === 'origin');
   assert.match(origin.subtitle, /no port scan/);
+});
+
+test('a connection remembers the sides it was drawn between', () => {
+  const doc = mergeScanIntoDoc(createDocFromScan(sampleScan()), sampleScan()).doc;
+  const [a, b] = unconnectedPair(doc);
+
+  const before = doc.edges.length;
+  const linked = addLink(doc, a.id, b.id, { from: 't', to: 'b' });
+  assert.equal(linked.edges.length, before + 1, 'the link is added');
+  const edge = linked.edges.at(-1);
+  assert.deepEqual({ from: edge.from, to: edge.to }, { from: 't', to: 'b' });
+  assert.deepEqual(edgeSides(edge), { from: 't', to: 'b' });
+  assert.equal(edgeArrow(edge), 'target', 'a link points at its target until told otherwise');
+
+  // A line with no arrowhead at all is a choice too.
+  assert.equal(edgeArrow({ ...edge, arrow: 'both' }), 'both');
+  assert.equal(edgeArrow({ ...edge, arrow: 'none' }), 'none');
+
+  // The shorthand survives without either side being set.
+  const [c, d] = unconnectedPair(linked);
+  const shorthand = addLink(linked, c.id, d.id);
+  const plainEdge = shorthand.edges.at(-1);
+  assert.notEqual(plainEdge.id, edge.id);
+  assert.deepEqual(edgeSides(plainEdge), { from: 'r', to: 'l' });
+});
+
+test('the design reader keeps the sides and the arrowhead, and drops nonsense', () => {
+  const doc = mergeScanIntoDoc(createDocFromScan(sampleScan()), sampleScan()).doc;
+  const [a, b] = unconnectedPair(doc);
+  const linked = addLink(doc, a.id, b.id, { from: 'l', to: 't' });
+  const linkId = linked.edges.at(-1).id;
+  assert.equal(linked.edges.at(-1).from, 'l', 'the link carries its sides before saving');
+  const withArrow = {
+    ...linked,
+    edges: linked.edges.map((edge) => (edge.id === linkId ? { ...edge, arrow: 'none' } : edge)),
+  };
+
+  const result = readDesignFile(JSON.stringify(buildDesignFile(withArrow)));
+  assert.equal(result.ok, true);
+  const edge = result.doc.edges.find((item) => item.id === linkId);
+  assert.deepEqual({ from: edge.from, to: edge.to, arrow: edge.arrow }, { from: 'l', to: 't', arrow: 'none' });
+
+  // A saved file from another tool (or a typo) cannot invent a side.
+  const broken = JSON.parse(JSON.stringify(buildDesignFile(withArrow)));
+  const brokenEdge = broken.doc.edges.find((item) => item.id === linkId);
+  brokenEdge.from = 'sideways';
+  brokenEdge.arrow = 'wobble';
+  const repaired = readDesignFile(JSON.stringify(broken));
+  assert.equal(repaired.ok, true);
+  const repairedEdge = repaired.doc.edges.find((item) => item.id === linkId);
+  assert.equal(repairedEdge.from, undefined);
+  assert.equal(repairedEdge.arrow, undefined);
+  assert.equal(repairedEdge.to, 't', 'a valid side is kept');
 });
 
 test('sizes: fixed per kind, sections grow with their children', () => {

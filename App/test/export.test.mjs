@@ -7,6 +7,7 @@ import { toMermaid } from '../src/export/mermaid';
 import { toSvg } from '../src/export/svg';
 import { toRiskCsv } from '../src/export/riskReport';
 import { createDocFromScan } from '../src/doc/docFromScan';
+import { addLink } from '../src/doc/operations';
 import { parseNmapXml } from '../src/nmap/parseNmapXml';
 import { defaultRiskPolicy, riskSummary } from '../src/doc/risk';
 import { SAMPLE_FILE_NAME, SAMPLE_SCAN_XML } from '../src/data/sampleScan';
@@ -127,6 +128,53 @@ test('a label cannot smuggle markup, control characters or syntax into an export
   assert.ok(mermaidOut.includes('#124;'), 'mermaid escapes the pipe that would end an edge label');
   assert.ok(mermaidOut.includes('#35;'), 'mermaid escapes the hash that starts an entity');
   assert.equal(mermaidOut.includes('|a|b'), false, 'no raw pipe survives in an edge label');
+});
+
+test('the exporters follow the sides and the arrowhead a connection was given', () => {
+  // The sample scan links its cards by traces only, so draw one by hand.
+  const drawn = (patch) => {
+    const hosts = doc.nodes.filter((node) => node.kind === 'host');
+    const taken = new Set(doc.edges.flatMap((edge) => [`${edge.source}|${edge.target}`, `${edge.target}|${edge.source}`]));
+    let pair;
+    for (const first of hosts) {
+      const second = hosts.find((node) => node !== first && !taken.has(`${first.id}|${node.id}`));
+      if (second) {
+        pair = [first, second];
+        break;
+      }
+    }
+    const linked = addLink(doc, pair[0].id, pair[1].id, { from: 't', to: 'b' });
+    const link = linked.edges.at(-1);
+    return { ...linked, edges: [{ ...link, ...patch }] };
+  };
+  const heads = (output) => output.match(/d="M 0 0 L/g)?.length ?? 0;
+
+  assert.equal(heads(toSvg(drawn({ arrow: 'none' }), policy).svg), 0, 'no arrowhead when none was asked for');
+  assert.equal(heads(toSvg(drawn({ arrow: 'target' }), policy).svg), 1, 'one arrowhead at the target');
+  assert.equal(heads(toSvg(drawn({ arrow: 'source' }), policy).svg), 1, 'one arrowhead at the source');
+  assert.equal(heads(toSvg(drawn({ arrow: 'both' }), policy).svg), 2, 'two arrowheads for both ends');
+
+  assert.notEqual(
+    toSvg(drawn({ from: 'l', to: 'r' }), policy).svg,
+    toSvg(drawn({ from: 't', to: 'b' }), policy).svg,
+    'the sides decide where the line meets the cards',
+  );
+
+  const drawioOut = toDrawio(drawn({ arrow: 'both' }), policy);
+  assert.ok(drawioOut.includes('exitX=0.5;exitY=0'), 'draw.io leaves the top edge');
+  assert.ok(drawioOut.includes('entryX=0.5;entryY=1'), 'and arrives at the bottom edge');
+  assert.ok(drawioOut.includes('startArrow=block'), 'draw.io draws the source arrowhead');
+  assert.ok(drawioOut.includes('endArrow=block'), 'draw.io draws the target arrowhead');
+  assert.ok(
+    toDrawio(drawn({ from: 'l', to: 'r' }), policy).includes('exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5'),
+    'a left-to-right link keeps the default sides',
+  );
+  assert.equal(toDrawio(drawn({ arrow: 'none' }), policy).includes('endArrow=block'), false);
+
+  const solid = toMermaid(drawn({ arrow: 'target', line: 'solid' }), policy);
+  assert.ok(solid.includes('-->'), 'a solid link points with -->');
+  assert.ok(toMermaid(drawn({ arrow: 'both', line: 'solid' }), policy).includes('<-->'), 'both ends point with <-->');
+  assert.ok(toMermaid(drawn({ arrow: 'none', line: 'dashed' }), policy).includes('-.-'), 'a plain dotted link is -.-');
 });
 
 test('the CSV report marks spreadsheet formulas as text', () => {

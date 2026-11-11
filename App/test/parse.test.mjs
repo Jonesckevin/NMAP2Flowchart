@@ -13,7 +13,7 @@ test('the bundled sample scan parses completely', () => {
 
   assert.equal(parsed.fileName, SAMPLE_FILE_NAME);
   assert.equal(parsed.hosts.length, 12);
-  assert.match(parsed.args ?? '', /-sV -sC --traceroute -oX/);
+  assert.match(parsed.args ?? '', /-sV -sC -O --traceroute -oX/);
   assert.equal(parsed.version, '7.95');
   assert.ok(parsed.startedAt?.endsWith('Z'));
   assert.ok((parsed.elapsedSeconds ?? 0) > 0);
@@ -117,10 +117,22 @@ test('an entity-expansion scan cannot stall the import', () => {
 
 test('unreadable scans fail with an actionable message', () => {
   assert.throws(() => parseNmapXml('<html><body/></html>'), /No <nmaprun> root element/);
+  assert.throws(() => parseNmapXml('not xml at all'), /XML|nmaprun/i);
+});
 
-  assert.throws(
-    () => parseNmapXml(scan('', 'nmap -sn -oX ping.xml 10.0.0.0/24')),
-    /A ping scan only lists hosts that answer/,
-  );
-  assert.throws(() => parseNmapXml(scan('')), /Try nmap with -Pn/);
+test('a scan that found no hosts still parses, and keeps what nmap said', () => {
+  // nmap writes this file, exits 0 and says why in <runstats>: the reader must not
+  // throw, and the import flow must be able to explain it to the user.
+  const empty = `<?xml version="1.0"?>
+<nmaprun scanner="nmap" args="nmap -sV -sC -O --traceroute -oX scan.xml 10.1.0.0/22" version="7.99">
+<runstats><finished time="1794278365" elapsed="827.34" exit="success"
+  summary="Nmap done at Mon Nov  9 21:39:25 2026; 1024 IP addresses (0 hosts up) scanned in 827.34 seconds"/>
+  <hosts up="0" down="1024" total="1024"/></runstats>
+</nmaprun>`;
+
+  const parsed = parseNmapXml(empty, 'scan.xml');
+  assert.deepEqual(parsed.hosts, []);
+  assert.match(parsed.summary ?? '', /0 hosts up/);
+  assert.match(parsed.args ?? '', /--traceroute/);
+  assert.equal(parsed.elapsedSeconds, 827.34);
 });

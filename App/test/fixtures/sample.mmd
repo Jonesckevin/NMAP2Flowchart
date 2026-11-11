@@ -1,40 +1,38 @@
 flowchart LR
-  %% nmap -sV -sC --traceroute -oX lab-scan.xml 10.0.0.0/24 10.10.20.0/24
+  %% nmap -sV -sC -O --traceroute -oX lab-scan.xml 10.0.0.0/24 10.10.20.0/24
   subgraph n_section_10_0_0_0_24["10.0.0.0/24"]
     direction TB
-    n_host_10_0_0_1["📡 10.0.0.1<br/>22/ssh, 53/domain, 80/http, 443/ssl/http"]
-    n_host_10_0_0_5["💾 10.0.0.5<br/>22/ssh, 139/netbios-ssn, 445/microsoft-ds, 5000/upnp"]
-    n_host_10_0_0_10["🐳 10.0.0.10<br/>22/ssh, 2375/docker"]
-    n_host_10_0_0_11["🌿 10.0.0.11<br/>22/ssh, 3000/http"]
-    n_host_10_0_0_20["🗃️ 10.0.0.20<br/>22/ssh, 3306/mysql"]
-    n_host_10_0_0_21["🗃️ 10.0.0.21<br/>22/ssh, 6379/redis"]
-    n_host_10_0_0_30["🖨️ 10.0.0.30<br/>80/http, 515/printer, 631/ipp, 9100/jetdirect"]
-    n_host_10_0_0_40["🪟 10.0.0.40<br/>135/msrpc, 445/microsoft-ds, 3389/ms-wbt-server"]
-    n_host_10_0_0_55["📹 10.0.0.55<br/>23/telnet, 554/rtsp"]
+    n_host_10_0_0_1["📡 10.0.0.1<br/>gw.lab.internal<br/>22/ssh, 53/domain, 80/http, 443/ssl/http"]
+    n_host_10_0_0_5["💾 10.0.0.5<br/>nas.lab.internal<br/>22/ssh, 139/netbios-ssn, 445/microsoft-ds, 5000/upnp"]
+    n_host_10_0_0_10["🐳 10.0.0.10<br/>build-01.lab.internal<br/>22/ssh, 2375/docker"]
+    n_host_10_0_0_11["🌿 10.0.0.11<br/>git.lab.internal<br/>22/ssh, 3000/http"]
+    n_host_10_0_0_20["🗃️ 10.0.0.20<br/>db-01.lab.internal<br/>22/ssh, 3306/mysql"]
+    n_host_10_0_0_21["🗃️ 10.0.0.21<br/>cache-01.lab.internal<br/>22/ssh, 6379/redis"]
+    n_host_10_0_0_30["🖨️ 10.0.0.30<br/>printer.lab.internal<br/>80/http, 515/printer, 631/ipp, 9100/jetdirect"]
+    n_host_10_0_0_40["🪟 10.0.0.40<br/>ws-office.lab.internal<br/>135/msrpc, 445/microsoft-ds, 3389/ms-wbt-server"]
+    n_host_10_0_0_55["📹 10.0.0.55<br/>camera-north.lab.internal<br/>23/telnet, 554/rtsp"]
   end
   subgraph n_section_10_10_20_0_24["10.10.20.0/24"]
     direction TB
-    n_host_10_10_20_1["🌐 10.10.20.1<br/>22/ssh, 8443/ssl/http"]
-    n_host_10_10_20_14["🛡️ 10.10.20.14<br/>443/ssl/http, 1194/openvpn"]
-    n_host_10_10_20_31["🌐 10.10.20.31<br/>22/ssh, 8080/http"]
+    n_host_10_10_20_1["🌐 10.10.20.1<br/>edge-01.lab.internal<br/>22/ssh, 8443/ssl/http"]
+    n_host_10_10_20_14["🛡️ 10.10.20.14<br/>vpn-01.lab.internal<br/>443/ssl/http, 1194/openvpn"]
+    n_host_10_10_20_31["🌐 10.10.20.31<br/>ci-runner.lab.internal<br/>22/ssh, 8080/http"]
   end
   n_origin["☁️ Scan origin<br/>12 hosts"]
-  n_hop_10_0_0_1["📡 10.0.0.1<br/>gw.lab.internal"]
   n_hop_10_0_0_254["📡 10.0.0.254"]
-  n_origin -.-> n_hop_10_0_0_1
-  n_hop_10_0_0_1 -.-> n_hop_10_0_0_254
-  n_hop_10_0_0_1 -.-> n_host_10_0_0_1
-  n_hop_10_0_0_1 -.-> n_host_10_0_0_5
-  n_hop_10_0_0_1 -.-> n_host_10_0_0_10
-  n_hop_10_0_0_1 -.-> n_host_10_0_0_11
-  n_hop_10_0_0_1 -.-> n_host_10_0_0_20
-  n_hop_10_0_0_1 -.-> n_host_10_0_0_21
-  n_hop_10_0_0_1 -.-> n_host_10_0_0_30
-  n_hop_10_0_0_1 -.-> n_host_10_0_0_40
-  n_hop_10_0_0_1 -.-> n_host_10_0_0_55
-  n_hop_10_0_0_254 -.-> n_host_10_10_20_1
-  n_hop_10_0_0_254 -.-> n_host_10_10_20_14
-  n_hop_10_0_0_254 -.-> n_host_10_10_20_31
+  n_origin -.- n_host_10_0_0_1
+  n_host_10_0_0_1 -.- n_hop_10_0_0_254
+  n_host_10_0_0_1 -.- n_host_10_0_0_5
+  n_host_10_0_0_1 -.- n_host_10_0_0_10
+  n_host_10_0_0_1 -.- n_host_10_0_0_11
+  n_host_10_0_0_1 -.- n_host_10_0_0_20
+  n_host_10_0_0_1 -.- n_host_10_0_0_21
+  n_host_10_0_0_1 -.- n_host_10_0_0_30
+  n_host_10_0_0_1 -.- n_host_10_0_0_40
+  n_host_10_0_0_1 -.- n_host_10_0_0_55
+  n_hop_10_0_0_254 -.- n_host_10_10_20_1
+  n_hop_10_0_0_254 -.- n_host_10_10_20_14
+  n_hop_10_0_0_254 -.- n_host_10_10_20_31
   classDef risk_medium fill:rgba(240, 140, 46, 0.14),stroke:#f08c2e,stroke-width:2px,color:#f08c2e;
   class n_host_10_0_0_1,n_host_10_0_0_10,n_host_10_0_0_11,n_host_10_10_20_1,n_host_10_10_20_31 risk_medium;
   classDef risk_critical fill:rgba(229, 72, 77, 0.14),stroke:#e5484d,stroke-width:2px,color:#e5484d;

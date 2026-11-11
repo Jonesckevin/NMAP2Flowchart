@@ -34,6 +34,28 @@ test('the worker pipeline returns everything the app needs to commit', () => {
   }
 });
 
+test('a scan that found nothing is explained, not drawn', () => {
+  const doc = sampleDoc();
+  const empty = `<?xml version="1.0"?>
+<nmaprun scanner="nmap" args="nmap -sV -sC -O --traceroute -oX scan7.xml 10.1.0.0/22" version="7.99">
+<runstats><finished elapsed="827.34" exit="success"
+  summary="Nmap done at Mon Nov  9 21:39:25 2026; 1024 IP addresses (0 hosts up) scanned in 827.34 seconds"/>
+  <hosts up="0" down="1024" total="1024"/></runstats>
+</nmaprun>`;
+
+  for (const mode of ['replace', 'merge', 'layer']) {
+    const result = runImport({ text: empty, fileName: 'scan7.xml', mode, doc });
+    assert.equal(result.ok, false, `${mode}: nothing is committed`);
+    assert.match(result.error, /scan7\.xml is a valid scan, but it found 0 hosts up/);
+    assert.match(result.error, /0 hosts up\) scanned/, 'nmap\'s own summary is quoted');
+    assert.match(result.error, /-Pn/, 'and it says what to try next');
+  }
+
+  // With no document open, the answer is the same one.
+  const fresh = runImport({ text: empty, fileName: 'scan7.xml', mode: 'replace', doc: null });
+  assert.equal(fresh.ok, false);
+});
+
 test('each mode produces the document its name promises', () => {
   const doc = sampleDoc();
 

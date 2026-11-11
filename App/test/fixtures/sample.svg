@@ -10,30 +10,24 @@
 <rect x="778" y="177" width="16" height="16" fill="#edf9f6" stroke="#c5ede3" stroke-width="1" rx="3.84"/><text x="786" y="187.88" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="7.04" font-weight="600" text-anchor="middle" fill="#ace4d7">SE</text>
 <text x="802" y="191" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="12" font-weight="600" fill="#334155">10.10.20.0/24</text>
 <text x="905.6" y="191" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9.5" fill="#6b7a8f">3 nodes</text>
-<path d="M 268 34 H 334.5 Q 338 34 338 30.5 V 30.5 Q 338 27 341.5 27 H 408" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
-<path d="M 564 27 H 606 Q 606 27 606 27 V 27 Q 606 27 606 27 H 648" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
-<path d="M 564 27 H 280 Q 294 27 294 41 V 266 Q 294 280 308 280 H 24" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
-<path d="M 564 27 H 396 Q 410 27 410 41 V 266 Q 410 280 424 280 H 256" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
-<path d="M 564 27 H 512 Q 526 27 526 41 V 266 Q 526 280 540 280 H 488" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
-<path d="M 564 27 H 280 Q 294 27 294 41 V 376 Q 294 390 308 390 H 24" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
-<path d="M 564 27 H 396 Q 410 27 410 41 V 376 Q 410 390 424 390 H 256" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
-<path d="M 564 27 H 512 Q 526 27 526 41 V 376 Q 526 390 540 390 H 488" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
-<path d="M 564 27 H 280 Q 294 27 294 41 V 486 Q 294 500 308 500 H 24" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
-<path d="M 564 27 H 396 Q 410 27 410 41 V 486 Q 410 500 424 500 H 256" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
-<path d="M 564 27 H 512 Q 526 27 526 41 V 486 Q 526 500 540 500 H 488" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
+<path d="M 268 34 H 132 Q 146 34 146 48 V 266 Q 146 280 160 280 H 24" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
+<path d="M 240 280 H 430 Q 444 280 444 266 V 41 Q 444 27 458 27 H 648" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
+<path d="M 240 280 H 248 Q 248 280 248 280 V 280 Q 248 280 248 280 H 256" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
+<path d="M 240 280 H 364 Q 364 280 364 280 V 280 Q 364 280 364 280 H 488" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
+<path d="M 240 280 H 118 Q 132 280 132 294 V 376 Q 132 390 146 390 H 24" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
+<path d="M 240 280 H 240 Q 248 280 248 288 V 382 Q 248 390 256 390 H 256" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
+<path d="M 240 280 H 350 Q 364 280 364 294 V 376 Q 364 390 378 390 H 488" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
+<path d="M 240 280 H 118 Q 132 280 132 294 V 486 Q 132 500 146 500 H 24" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
+<path d="M 240 280 H 240 Q 248 280 248 288 V 492 Q 248 500 256 500 H 256" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
+<path d="M 240 280 H 350 Q 364 280 364 294 V 486 Q 364 500 378 500 H 488" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
 <path d="M 804 27 H 788 Q 796 27 796 35 V 272 Q 796 280 804 280 H 788" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
 <path d="M 804 27 H 898 Q 912 27 912 41 V 266 Q 912 280 926 280 H 1020" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
 <path d="M 804 27 H 788 Q 796 27 796 35 V 382 Q 796 390 804 390 H 788" fill="none" stroke="#8ba1b8" stroke-width="1.4" stroke-dasharray="9 5"/>
 <rect x="0" y="0" width="268" height="68" fill="#1f2937" stroke="#0f172a" stroke-width="1.2" rx="12"/>
 <rect x="12" y="12" width="16" height="16" fill="#eff5ff" stroke="#cddeff" stroke-width="1" rx="3.84"/><text x="20" y="22.88" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="7.04" font-weight="600" text-anchor="middle" fill="#b6d0ff">CL</text>
 <text x="34" y="22" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="8.5" font-weight="600" fill="#7fe6c4">SCAN ORIGIN</text>
-<text x="12" y="40" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="9.5" fill="#f8fafc">nmap -sV -sC --traceroute -oX lab-scan.xm…</text>
+<text x="12" y="40" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="9.5" fill="#f8fafc">nmap -sV -sC -O --traceroute -oX lab-scan…</text>
 <text x="12" y="56" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="9" fill="#9fb0c4">12 hosts</text>
-<rect x="408" y="0" width="156" height="54" fill="#eef2f7" stroke="#b6c1d1" stroke-width="1" rx="27"/>
-<rect x="420" y="19.5" width="15" height="15" fill="#e9f4ff" stroke="#b7dbff" stroke-width="1" rx="3.5999999999999996"/><text x="427.5" y="29.7" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="6.6" font-weight="600" text-anchor="middle" fill="#97ccff">RO</text>
-<text x="441" y="20" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="8" fill="#6b7a8f">hop 1</text>
-<text x="441" y="33" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="10" fill="#334155">10.0.0.1</text>
-<text x="441" y="44" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="7.5" fill="#6b7a8f">gw.lab.internal</text>
 <rect x="648" y="0" width="156" height="54" fill="#eef2f7" stroke="#b6c1d1" stroke-width="1" rx="27"/>
 <rect x="660" y="19.5" width="15" height="15" fill="#e9f4ff" stroke="#b7dbff" stroke-width="1" rx="3.5999999999999996"/><text x="667.5" y="29.7" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="6.6" font-weight="600" text-anchor="middle" fill="#97ccff">RO</text>
 <text x="681" y="20" font-family="'Inter', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="8" fill="#6b7a8f">hop 2</text>
