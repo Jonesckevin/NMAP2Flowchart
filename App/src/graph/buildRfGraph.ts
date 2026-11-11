@@ -1,9 +1,16 @@
-import { MarkerType, type Edge, type Node, type XYPosition } from '@xyflow/react';
+import {
+  MarkerType,
+  type Edge,
+  type Node,
+  type XYPosition,
+} from '@xyflow/react';
 import { type NmapHost } from '../model/types';
 import { hostMatchesRiskFilter, type NodeRisk, type RiskPolicy } from '../doc/risk';
 import {
+  edgeArrow,
   edgeLine,
   edgePath,
+  edgeSides,
   type DiagramDoc,
   type DiagramEdge,
   type DiagramNode,
@@ -261,6 +268,8 @@ export function toRfEdge(edge: DiagramEdge, selected: boolean): AppEdge {
   const dash = DASH[line];
   const round = line === 'dotted' ? { strokeLinecap: 'round' as const } : {};
   const type = RF_EDGE_TYPE[edgePath(edge)];
+  const sides = edgeSides(edge);
+  const arrow = edgeArrow(edge);
 
   if (edge.kind === 'route') {
     const intoHost = edge.target.startsWith('host:');
@@ -268,11 +277,14 @@ export function toRfEdge(edge: DiagramEdge, selected: boolean): AppEdge {
       id: edge.id,
       source: edge.source,
       target: edge.target,
+      sourceHandle: sides.from,
+      targetHandle: sides.to,
       type,
       selected,
       interactionWidth: 12,
       data: { kind: edge.kind, label: edge.label },
       style: { ...(intoHost ? INTO_HOST_STYLE : ROUTE_STYLE), ...round, strokeDasharray: dash },
+      ...arrowMarkers(arrow, '#3f5d7a'),
       label: edge.label,
       labelStyle: LABEL_STYLE,
       labelBgStyle: LABEL_BG_STYLE,
@@ -282,16 +294,27 @@ export function toRfEdge(edge: DiagramEdge, selected: boolean): AppEdge {
     id: edge.id,
     source: edge.source,
     target: edge.target,
+    sourceHandle: sides.from,
+    targetHandle: sides.to,
     type,
     selected,
     interactionWidth: 26,
     data: { kind: edge.kind, label: edge.label },
     style: { ...LINK_STYLE, ...round, strokeDasharray: dash },
-    markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--accent)', width: 16, height: 16 },
+    ...arrowMarkers(arrow, 'var(--accent)'),
     label: edge.label,
     labelStyle: LABEL_STYLE,
     labelBgStyle: LABEL_BG_STYLE,
   };
+}
+
+/** Arrowheads on the ends the edge asks for; `none` keeps a plain line. */
+function arrowMarkers(arrow: ReturnType<typeof edgeArrow>, color: string) {
+  const marker = { type: MarkerType.ArrowClosed, color, width: 16, height: 16 };
+  if (arrow === 'none') return {};
+  if (arrow === 'source') return { markerStart: marker };
+  if (arrow === 'both') return { markerStart: marker, markerEnd: marker };
+  return { markerEnd: marker };
 }
 
 const LABEL_STYLE = { fill: '#cfdae6', fontSize: 10, fontFamily: 'ui-monospace, monospace' };

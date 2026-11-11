@@ -50,6 +50,30 @@ export const EDGE_PATH_LABELS: Record<EdgePath, string> = {
   smoothstep: 'Square',
 };
 
+/** Which side of a card a line leaves from or arrives at. */
+export type EdgeSide = 'l' | 'r' | 't' | 'b';
+
+export const EDGE_SIDES: EdgeSide[] = ['l', 't', 'r', 'b'];
+
+export const EDGE_SIDE_LABELS: Record<EdgeSide, string> = {
+  l: 'Left',
+  r: 'Right',
+  t: 'Top',
+  b: 'Bottom',
+};
+
+/** Where the arrowheads sit: end, start, both, or nowhere. */
+export type EdgeArrow = 'target' | 'source' | 'both' | 'none';
+
+export const EDGE_ARROWS: EdgeArrow[] = ['target', 'source', 'both', 'none'];
+
+export const EDGE_ARROW_LABELS: Record<EdgeArrow, string> = {
+  target: 'Point at the target',
+  source: 'Point at the source',
+  both: 'Point both ways',
+  none: 'No arrowhead',
+};
+
 export type DiagramEdge = {
   id: string;
   source: string;
@@ -58,6 +82,12 @@ export type DiagramEdge = {
   label?: string;
   line?: EdgeLine;
   path?: EdgePath;
+  /** Side of the source card the line leaves; unset is the shorthand, right. */
+  from?: EdgeSide;
+  /** Side of the target card the line arrives at; unset is the shorthand, left. */
+  to?: EdgeSide;
+  /** Arrowheads; unset means links point at the target and routes carry none. */
+  arrow?: EdgeArrow;
 };
 
 export function edgeLine(edge: DiagramEdge): EdgeLine {
@@ -66,6 +96,14 @@ export function edgeLine(edge: DiagramEdge): EdgeLine {
 
 export function edgePath(edge: DiagramEdge): EdgePath {
   return edge.path ?? (edge.kind === 'route' ? 'smoothstep' : 'curve');
+}
+
+export function edgeSides(edge: DiagramEdge): { from: EdgeSide; to: EdgeSide } {
+  return { from: edge.from ?? 'r', to: edge.to ?? 'l' };
+}
+
+export function edgeArrow(edge: DiagramEdge): EdgeArrow {
+  return edge.arrow ?? (edge.kind === 'route' ? 'none' : 'target');
 }
 
 export type DiagramDoc = {

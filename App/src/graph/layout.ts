@@ -80,6 +80,8 @@ function layoutRoute(scan: NmapScan): { hops: PlacedHop[]; bottom: number } {
   const depthByIp = new Map<string, number>();
   for (const host of scan.hosts) {
     host.hops.forEach((ip, index) => {
+      // nmap ends a trace at the target: that entry names the host, not a router.
+      if (ip === host.ip) return;
       const depth = index + 1;
       if ((depthByIp.get(ip) ?? 0) < depth) depthByIp.set(ip, depth);
     });

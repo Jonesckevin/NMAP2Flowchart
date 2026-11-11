@@ -1,12 +1,16 @@
 import {
   nodeTitle,
+  edgeArrow,
+  edgeSides,
   type DiagramDoc,
   type EdgePath,
+  type EdgeSide,
 } from '../doc/types';
 import { buildScene } from '../graph/scene';
 import { HOP_H } from '../graph/layout';
 import { iconById } from '../icons/registry';
 import { openPorts } from '../model/types';
+import { virtualPlatformOf } from '../model/device';
 import { hexToRgba, levelForPort, type RiskPolicy } from '../doc/risk';
 import { escapeXml } from './text';
 
@@ -48,6 +52,23 @@ const MONO = "'JetBrains Mono', Consolas, 'Courier New', monospace";
 const esc = escapeXml;
 
 const round = (value: number) => Math.round(value * 100) / 100;
+
+/** Where a line attaches to a card, given the side it was drawn to. */
+function edgePoint(box: { x: number; y: number; w: number; h: number }, side: EdgeSide): { x: number; y: number } {
+  if (side === 'l') return { x: box.x, y: box.y + box.h / 2 };
+  if (side === 'r') return { x: box.x + box.w, y: box.y + box.h / 2 };
+  if (side === 't') return { x: box.x + box.w / 2, y: box.y };
+  return { x: box.x + box.w / 2, y: box.y + box.h };
+}
+
+/** A filled triangle at (x, y), pointing away from (fromX, fromY). */
+function arrowHead(x: number, y: number, fromX: number, fromY: number, color: string): string {
+  const angle = (Math.atan2(y - fromY, x - fromX) * 180) / Math.PI;
+  const size = 7.5;
+  return `<path d="M 0 0 L ${-size} ${-size * 0.52} L ${-size} ${size * 0.52} Z" fill="${color}" transform="translate(${round(
+    x,
+  )} ${round(y)}) rotate(${round(angle)})"/>`;
+}
 
 function edgeDraw(path: EdgePath, x1: number, y1: number, x2: number, y2: number, bend: number): string {
   if (path === 'straight') return `M ${round(x1)} ${round(y1)} L ${round(x2)} ${round(y2)}`;
@@ -209,19 +230,26 @@ export function toSvg(doc: DiagramDoc, riskPolicy: RiskPolicy): SvgExport {
   for (const { edge, source, target, line, path } of scene.edges) {
     const a = source.box;
     const b = target.box;
-    const x1 = a.x + a.w;
-    const y1 = a.y + a.h / 2;
-    const x2 = b.x;
-    const y2 = b.y + b.h / 2;
-    const bend = Math.max(40, Math.abs(x2 - x1) * 0.45);
+    const sides = edgeSides(edge);
+    const start = edgePoint(a, sides.from);
+    const end = edgePoint(b, sides.to);
+    const x1 = start.x;
+    const y1 = start.y;
+    const x2 = end.x;
+    const y2 = end.y;
+    const vertical = sides.from === 't' || sides.from === 'b';
+    const bend = Math.max(40, (vertical ? Math.abs(y2 - y1) : Math.abs(x2 - x1)) * 0.45);
     const dash = line === 'solid' ? '' : line === 'dashed' ? '9 5' : '1.8 4.6';
     const stroke = edge.kind === 'route' ? INK.route : INK.link;
     const sw = edge.kind === 'route' ? 1.4 : 2;
     body.push(
-      `<path d="${edgeDraw(path, x1, y1, x2, y2, bend)}" fill="none" stroke="${stroke}" stroke-width="${sw}"${
+      `<path d="${edgeDraw(vertical ? (path === 'curve' ? 'straight' : path) : path, x1, y1, x2, y2, bend)}" fill="none" stroke="${stroke}" stroke-width="${sw}"${
         dash ? ` stroke-dasharray="${dash}"` : ''
       }/>`,
     );
+    const arrow = edgeArrow(edge);
+    if (arrow === 'target' || arrow === 'both') body.push(arrowHead(x2, y2, x1, y1, stroke));
+    if (arrow === 'source' || arrow === 'both') body.push(arrowHead(x1, y1, x2, y2, stroke));
     if (edge.label) {
       body.push(
         text({
@@ -307,6 +335,7 @@ export function toSvg(doc: DiagramDoc, riskPolicy: RiskPolicy): SvgExport {
         chip(`${port.port}${port.service ? ` ${port.service}` : ''}`, levelForPort(port.port, riskPolicy)?.color);
       }
       if (overflow > 0) chip(`+${overflow}`, undefined);
+      if (virtualPlatformOf(host)) chip('VM', undefined);
       continue;
     }
 

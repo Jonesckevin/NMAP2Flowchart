@@ -44,6 +44,20 @@ export type ImportFailure = { ok: false; error: string };
 
 export type ImportResponse = ImportSuccess | ImportFailure;
 
+/**
+ * nmap is happy to write a file that found nothing – a router that drops the
+ * probes, a typo in the range, the wrong interface. Say what nmap itself said
+ * instead of drawing an empty diagram over the one that is open.
+ */
+function emptyScanError(fileName: string, scan: NmapScan): string {
+  const args = scan.args ?? '';
+  const hint = /(^|\s)-sn(\s|$)/.test(args)
+    ? 'A ping sweep only lists hosts that answer – try sudo for ARP discovery on the local subnet, or scan again with -Pn.'
+    : 'Nothing answered. Check the target range, and add -Pn when the hosts block ping.';
+  const summary = scan.summary ? ` Nmap reported: ${scan.summary}.` : '';
+  return `${fileName} is a valid scan, but it found 0 hosts up, so there is nothing to draw.${summary} ${hint}`;
+}
+
 export function runImport({ text, fileName, mode, doc }: ImportRequest): ImportResponse {
   let scan: NmapScan;
   try {
@@ -51,6 +65,8 @@ export function runImport({ text, fileName, mode, doc }: ImportRequest): ImportR
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : 'That file could not be read.' };
   }
+
+  if (scan.hosts.length === 0) return { ok: false, error: emptyScanError(fileName, scan) };
 
   try {
     const effects = scanEffects(doc, scan);

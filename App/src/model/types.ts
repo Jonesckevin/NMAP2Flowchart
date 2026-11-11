@@ -3,6 +3,15 @@ export type NmapScript = {
   output: string;
 };
 
+export type NmapOsClass = {
+  /** nmap's own device category: router, switch, WAP, firewall, printer, phone… */
+  type: string;
+  vendor?: string;
+  osfamily?: string;
+  osgen?: string;
+  accuracy: number;
+};
+
 export type NmapPort = {
   port: number;
   protocol: string;
@@ -11,12 +20,20 @@ export type NmapPort = {
   product?: string;
   version?: string;
   extrainfo?: string;
+  /** `-sV`'s device category for the service, e.g. `router`, `printer`, `webcam`. */
+  devicetype?: string;
+  /** `-sV`'s guess at the platform behind the banner, e.g. `Linux`, `Windows`. */
+  ostype?: string;
+  /** CPE identifiers from `<service><cpe>`, e.g. `cpe:/o:microsoft:windows`. */
+  cpe?: string[];
   scripts: NmapScript[];
 };
 
 export type NmapOsMatch = {
   name: string;
   accuracy: number;
+  /** `<osclass>` children of this guess – the category nmap assigned, with its own accuracy. */
+  classes?: NmapOsClass[];
 };
 
 export type NmapMac = {
@@ -54,6 +71,8 @@ export type NmapScan = {
   version?: string;
   startedAt?: string;
   elapsedSeconds?: number;
+  /** nmap's own closing line, e.g. `… 1024 IP addresses (0 hosts up) scanned in 827.34 seconds`. */
+  summary?: string;
   hosts: NmapHost[];
   trace?: NmapTraceHop[];
 };

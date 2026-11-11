@@ -1,5 +1,7 @@
 import type { NmapHost, NmapScan } from '../model/types';
+import { openPorts } from '../model/types';
 import { detectIcon } from '../icons/registry';
+import { routedIcon } from '../model/device';
 import { layoutScan, HOST_H, HOST_W } from '../graph/layout';
 import {
   LAYER_COLORS,
@@ -29,6 +31,9 @@ function buildFromScan(scan: NmapScan): { nodes: DiagramNode[]; edges: DiagramEd
   const nodes: DiagramNode[] = [];
   const edges: DiagramEdge[] = [];
   const discoveryScan = scan.hosts.length > 0 && scan.hosts.every((host) => host.portsScanned === false);
+  const hostIps = new Set(scan.hosts.map((host) => host.ip));
+  // A trace hop that is also a scanned host is drawn as that host card, not twice.
+  const routerDepth = new Map(layout.hops.map((hop) => [hop.ip, hop.depth]));
 
   nodes.push({
     id: 'origin',
@@ -42,6 +47,7 @@ function buildFromScan(scan: NmapScan): { nodes: DiagramNode[]; edges: DiagramEd
   });
 
   for (const hop of layout.hops) {
+    if (hostIps.has(hop.ip)) continue;
     nodes.push({
       id: nodeId('hop', hop.ip),
       kind: 'hop',
@@ -67,6 +73,7 @@ function buildFromScan(scan: NmapScan): { nodes: DiagramNode[]; edges: DiagramEd
     });
 
     for (const placed of subnet.hosts) {
+      const depth = routerDepth.get(placed.host.ip);
       nodes.push({
         id: hostNodeId(placed.host),
         kind: 'host',
@@ -74,7 +81,10 @@ function buildFromScan(scan: NmapScan): { nodes: DiagramNode[]; edges: DiagramEd
         parentId: sectionId,
         position: { x: placed.x, y: placed.y },
         host: placed.host,
-        icon: detectIcon(placed.host),
+        // The card is a router when other traces pass through it: the route lane
+        // chains by depth, and a card in that chain wears a network icon.
+        icon: depth ? routedIcon(placed.host) : detectIcon(placed.host),
+        ...(depth ? { depth } : {}),
       });
     }
   }
@@ -93,31 +103,43 @@ export function routeEdges(nodes: DiagramNode[]): DiagramEdge[] {
   return [...byLayer.values()].flatMap((group) => routeEdgesInLayer(group));
 }
 
+/**
+ * Route edges chain the routers a trace actually names: `origin → depth 1 → … →
+ * card`. A router can be a hop card or a scanned host card – a switch or gateway
+ * the scan also probed lives inside its subnet frame and is still on the path.
+ */
 function routeEdgesInLayer(nodes: DiagramNode[]): DiagramEdge[] {
   const origin = nodes.find((node) => node.kind === 'origin');
-  const hops = nodes.filter((node) => node.kind === 'hop' && node.address);
-  const hopByAddress = new Map(hops.map((hop) => [hop.address as string, hop]));
-  const depths = [...new Set(hops.map((hop) => hop.depth ?? 1))].sort((a, b) => a - b);
+  const addressOf = (node: DiagramNode): string | undefined =>
+    node.kind === 'hop' ? node.address : node.kind === 'host' ? node.host?.ip : undefined;
+  const routers = nodes.filter((node) => addressOf(node) && (node.kind === 'hop' || (node.depth ?? 0) > 0));
+  const routerByAddress = new Map(routers.map((router) => [addressOf(router) as string, router]));
+  const depths = [...new Set(routers.map((router) => router.depth ?? 1))].sort((a, b) => a - b);
   const edges: DiagramEdge[] = [];
+  const seen = new Set<string>();
+  const link = (source: DiagramNode, target: DiagramNode) => {
+    if (source.id === target.id) return;
+    const pair = `${source.id}|${target.id}`;
+    const reverse = `${target.id}|${source.id}`;
+    if (seen.has(pair) || seen.has(reverse)) return;
+    seen.add(pair);
+    edges.push({ id: `route:${source.id}-${target.id}`, source: source.id, target: target.id, kind: 'route' });
+  };
 
-  if (origin) {
-    for (const hop of hops.filter((hop) => (hop.depth ?? 1) === depths[0])) {
-      edges.push({ id: `route:${origin.id}-${hop.id}`, source: origin.id, target: hop.id, kind: 'route' });
-    }
+  if (origin && depths.length > 0) {
+    for (const router of routers.filter((node) => (node.depth ?? 1) === depths[0])) link(origin, router);
   }
   for (let i = 0; i < depths.length - 1; i += 1) {
-    for (const from of hops.filter((hop) => (hop.depth ?? 1) === depths[i])) {
-      for (const to of hops.filter((hop) => (hop.depth ?? 1) === depths[i + 1])) {
-        edges.push({ id: `route:${from.id}-${to.id}`, source: from.id, target: to.id, kind: 'route' });
-      }
+    for (const from of routers.filter((node) => (node.depth ?? 1) === depths[i])) {
+      for (const to of routers.filter((node) => (node.depth ?? 1) === depths[i + 1])) link(from, to);
     }
   }
   for (const host of nodes.filter((node) => node.kind === 'host' && node.host)) {
-    const chain = host.host?.hops ?? [];
+    // nmap ends the trace at the target; that last entry is the card, not a router.
+    const chain = host.host?.hops.filter((ip) => ip !== host.host?.ip) ?? [];
     const last = chain[chain.length - 1];
-    const hop = last ? hopByAddress.get(last) : undefined;
-    if (!hop) continue;
-    edges.push({ id: `route:${hop.id}-${host.id}`, source: hop.id, target: host.id, kind: 'route' });
+    const router = last ? routerByAddress.get(last) : undefined;
+    if (router) link(router, host);
   }
   return edges;
 }
@@ -212,11 +234,42 @@ export function emptyDoc(): DiagramDoc {
   };
 }
 
+/**
+ * Two imports can both describe one address: one probed it, another only traced
+ * past it. The card keeps the richer record's content and takes what that record
+ * lacks from the other – a scan without `--traceroute` must not erase the path a
+ * scan with it found.
+ */
+function mergeHostRecords(current: NmapHost | undefined, incoming: NmapHost): NmapHost {
+  if (!current) return incoming;
+  const value = (host: NmapHost) => openPorts(host).length * 10 + host.hostnames.length * 2 + host.ports.length;
+  const [richer, other] = value(incoming) >= value(current) ? [incoming, current] : [current, incoming];
+  const hostnames = [...new Set([...richer.hostnames, ...other.hostnames])];
+  return {
+    ...richer,
+    hostnames: hostnames.length > 0 ? hostnames : richer.hostnames,
+    hops: richer.hops.length > 0 ? richer.hops : other.hops,
+    mac: richer.mac ?? other.mac,
+    macs: richer.macs ?? other.macs,
+    vendor: richer.vendor ?? other.vendor,
+    os: richer.os.length > 0 ? richer.os : other.os,
+    scripts: richer.scripts.length > 0 ? richer.scripts : other.scripts,
+    addresses: [...new Set([...(richer.addresses ?? []), ...(other.addresses ?? [])])],
+  };
+}
+
 export function mergeScanIntoDoc(doc: DiagramDoc, scan: NmapScan): { doc: DiagramDoc; added: number; gone: number } {
   const fresh = buildFromScan(scan);
   const layerNodes = doc.nodes.filter((node) => node.layerId === MAIN_LAYER);
   const otherNodes = doc.nodes.filter((node) => node.layerId !== MAIN_LAYER);
-  const existing = new Map(layerNodes.map((node) => [identify(node), node]));
+  const existing = new Map<string, DiagramNode>();
+  for (const node of layerNodes) {
+    const key = identify(node);
+    const current = existing.get(key);
+    // A host card carries more than a hop card for the same address.
+    if (current && (current.kind === 'host' || node.kind !== 'host')) continue;
+    existing.set(key, node);
+  }
   const existingById = new Map(layerNodes.map((node) => [node.id, node]));
 
   const bottomOf = (node: DiagramNode) =>
@@ -238,9 +291,17 @@ export function mergeScanIntoDoc(doc: DiagramDoc, scan: NmapScan): { doc: Diagra
   for (const incoming of fresh.nodes) {
     const match = existing.get(identify(incoming));
     if (match) {
+      // The richer card wins: probing a router that another scan only saw on the
+      // path turns the hop card into a host card, not the other way round.
+      const host = incoming.host ? mergeHostRecords(match.host, incoming.host) : match.host;
+      // The icon may have been read from the record that just lost its evidence –
+      // a Plex banner over the router firmware – so refresh an auto-detected one.
+      const autoIcon = match.host ? match.icon === detectIcon(match.host) : true;
       nodes.push({
         ...match,
-        host: incoming.host ?? match.host,
+        kind: host ? 'host' : match.kind,
+        host,
+        ...(host && autoIcon ? { icon: detectIcon(host) } : {}),
         address: incoming.address ?? match.address,
         depth: incoming.depth ?? match.depth,
         subtitle: match.subtitle ?? incoming.subtitle,
@@ -297,9 +358,11 @@ export function mergeScanIntoDoc(doc: DiagramDoc, scan: NmapScan): { doc: Diagra
 }
 
 export function identify(node: DiagramNode): string {
-  if (node.kind === 'host') return `host:${node.host?.ip || node.id}`;
+  // A hop and a host with the same address are the same device: one scan can see
+  // a router on the path while another probes it, and the card must not double.
+  if (node.kind === 'host') return `device:${node.host?.ip || node.id}`;
+  if (node.kind === 'hop') return `device:${node.address || node.id}`;
   if (node.kind === 'section') return `section:${node.cidr || node.id}`;
-  if (node.kind === 'hop') return `hop:${node.address || node.id}`;
   if (node.kind === 'origin') return 'origin';
   return node.id;
 }

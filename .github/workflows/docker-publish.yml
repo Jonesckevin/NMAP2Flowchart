@@ -1,0 +1,130 @@
+name: Docker Hub image
+
+# Publishes the single-container image – SPA and accounts API in one process – to
+# Docker Hub from Dockerfile.unified:
+#
+#   push to main      :latest and :sha-<short>
+#   tag v1.4.0        :1.4.0, :1.4 and :1
+#   manual dispatch   builds and scans, then pushes (from main: :latest)
+#
+# Nothing is pushed until Trivy has scanned the freshly built image and the
+# Dockerfiles: a CRITICAL or HIGH finding that has a fix fails the run.
+#
+# Repository needs two secrets:
+#   DOCKERHUB_USERNAME   the Docker Hub account
+#   DOCKERHUB_TOKEN      an access token with Read & Write scope (not the password)
+# Optional repository variable:
+#   DOCKERHUB_REPOSITORY push somewhere other than <DOCKERHUB_USERNAME>/nmap2flowchart
+#   NODE_VERSION         override the base image tag (default 24-alpine)
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOCKERFILE: Dockerfile.unified
+
+jobs:
+  scan:
+    name: Build and scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # One platform is enough to scan: the bundle is the same JavaScript on both.
+      - name: Build linux/amd64
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          platforms: linux/amd64
+          load: true
+          tags: nmap2flowchart:scan
+          build-args: |
+            NODE_VERSION=${{ vars.NODE_VERSION || '24-alpine' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trivy – image
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: nmap2flowchart:scan
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          format: table
+          exit-code: '1'
+
+      - name: Trivy – Dockerfiles
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          scan-type: config
+          scan-ref: .
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          # YAML ignores are not auto-detected, unlike a plain .trivyignore.
+          trivyignores: .trivyignore.yaml
+
+  publish:
+    name: Push
+    needs: scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      # arm64 is built under emulation; the build stage runs on the runner's own
+      # platform ($BUILDPLATFORM), so only the small runtime stage is emulated.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Tags and labels
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ vars.DOCKERHUB_REPOSITORY || format('{0}/nmap2flowchart', secrets.DOCKERHUB_USERNAME) }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short,prefix=sha-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            NODE_VERSION=${{ vars.NODE_VERSION || '24-alpine' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: mode=max
+          sbom: true

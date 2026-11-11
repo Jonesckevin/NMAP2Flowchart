@@ -5,8 +5,32 @@ import { discoveryOnly, openPorts } from '../model/types';
 import { hexToRgba } from '../doc/risk';
 import { NodeIcon } from '../icons/NodeIcon';
 import { nodeSubtitle, nodeTitle } from '../doc/types';
+import { virtualPlatformOf } from '../model/device';
 
 const MAX_BADGES = 2;
+
+/** The four sides a line can leave from or arrive at, in tab order around the card. */
+const HANDLE_SIDES = [
+  { id: 'l', position: Position.Left },
+  { id: 't', position: Position.Top },
+  { id: 'r', position: Position.Right },
+  { id: 'b', position: Position.Bottom },
+] as const;
+
+/**
+ * Every card offers the same four connector points. React Flow runs in loose mode,
+ * so a handle is a start *or* an end – you draw the line from whichever side you
+ * want and drop it on whichever side of the other card.
+ */
+const NodeHandles = memo(function NodeHandles() {
+  return (
+    <>
+      {HANDLE_SIDES.map((side) => (
+        <Handle key={side.id} id={side.id} type="source" position={side.position} className="node-handle" />
+      ))}
+    </>
+  );
+});
 
 export const HostNode = memo(function HostNode({ data, selected }: NodeProps<AppNode>) {
   const node = data.node;
@@ -18,6 +42,7 @@ export const HostNode = memo(function HostNode({ data, selected }: NodeProps<App
   const shown = open.slice(0, open.length > MAX_BADGES ? MAX_BADGES - 1 : MAX_BADGES);
   const overflow = open.length - shown.length;
   const subtitle = nodeSubtitle(node);
+  const vm = host ? virtualPlatformOf(host) : undefined;
   const osHint = host?.os[0] ? ` · ${host.os[0].name.split(' ').slice(0, 2).join(' ')}` : '';
   const meta = !host
     ? (node.notes?.split('\n')[0] ?? 'custom node')
@@ -52,7 +77,7 @@ export const HostNode = memo(function HostNode({ data, selected }: NodeProps<App
       }
       data-accent={node.accent || undefined}
     >
-      <Handle type="target" position={Position.Left} className="node-handle" />
+      <NodeHandles />
       <div className="host-node__head">
         <NodeIcon id={node.icon} size={20} />
         <div className="host-node__titles">
@@ -61,6 +86,11 @@ export const HostNode = memo(function HostNode({ data, selected }: NodeProps<App
         </div>
         <div className="host-node__flags">
           {host?.status === 'down' && <span className="tag tag--down">down</span>}
+          {vm && (
+            <span className="tag tag--vm" title={`Virtual machine on ${vm}`}>
+              VM
+            </span>
+          )}
           {risk && (
             <span
               className="tag tag--risk"
@@ -98,7 +128,7 @@ export const HostNode = memo(function HostNode({ data, selected }: NodeProps<App
           {overflow > 0 && <span className="badge badge--more">+{overflow}</span>}
         </div>
       )}
-      <Handle type="source" position={Position.Right} className="node-handle" />
+
     </article>
   );
 });
@@ -122,7 +152,7 @@ export const SectionNode = memo(function SectionNode({ data, selected }: NodePro
       style={node.accent ? ({ '--node-accent': node.accent } as React.CSSProperties) : undefined}
       data-accent={node.accent || undefined}
     >
-      <Handle type="target" position={Position.Left} className="node-handle" />
+      <NodeHandles />
       {selected && !collapsed && (
         <NodeResizer
           minWidth={data.minW}
@@ -168,7 +198,7 @@ export const SectionNode = memo(function SectionNode({ data, selected }: NodePro
           {collapsed ? 'expand' : 'minimize'}
         </button>
       </div>
-      <Handle type="source" position={Position.Right} className="node-handle" />
+
     </div>
   );
 });
@@ -182,14 +212,14 @@ export const HopNode = memo(function HopNode({ data, selected }: NodeProps<AppNo
       style={node.accent ? ({ '--node-accent': node.accent } as React.CSSProperties) : undefined}
       data-accent={node.accent || undefined}
     >
-      <Handle type="target" position={Position.Left} className="node-handle" />
+      <NodeHandles />
       <NodeIcon id={node.icon ?? 'router'} size={15} />
       <div className="hop-node__text">
         <span className="hop-node__depth">hop {node.depth ?? 1}</span>
         <span className="mono hop-node__ip">{nodeTitle(node)}</span>
         {node.subtitle && <span className="hop-node__name">{node.subtitle}</span>}
       </div>
-      <Handle type="source" position={Position.Right} className="node-handle" />
+
     </div>
   );
 });
@@ -209,7 +239,7 @@ export const OriginNode = memo(function OriginNode({ data, selected }: NodeProps
       </div>
       <span className="mono origin-node__args">{node.address ?? node.notes ?? 'imported scan'}</span>
       <span className="origin-node__meta">{node.subtitle ?? ''}</span>
-      <Handle type="source" position={Position.Right} className="node-handle" />
+      <NodeHandles />
     </div>
   );
 });
@@ -240,7 +270,7 @@ export const NoteNode = memo(function NoteNode({ data, selected }: NodeProps<App
         .join(' ')}
       style={node.accent ? ({ '--node-accent': node.accent } as React.CSSProperties) : undefined}
     >
-      <Handle type="target" position={Position.Left} className="node-handle" />
+      <NodeHandles />
       <div className="note-node__head">
         <NodeIcon id={node.icon ?? 'iot'} size={14} />
         <span className="note-node__title">{nodeTitle(node)}</span>
@@ -278,7 +308,7 @@ export const NoteNode = memo(function NoteNode({ data, selected }: NodeProps<App
       ) : (
         <p className="note-node__body">{node.notes?.trim() ? node.notes : 'Double-click to edit'}</p>
       )}
-      <Handle type="source" position={Position.Right} className="node-handle" />
+
     </div>
   );
 });

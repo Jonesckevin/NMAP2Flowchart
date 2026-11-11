@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Background,
   BackgroundVariant,
+  ConnectionMode,
   Controls,
   MiniMap,
   ReactFlow,
@@ -45,6 +46,7 @@ import {
   nodeTitle,
   type DiagramDoc,
   type DiagramNode,
+  type EdgeSide,
 } from './doc/types';
 import { absolutePosition, nodeSize, sectionAt } from './doc/measure';
 import {
@@ -75,6 +77,9 @@ import {
   type StackMode,
 } from './doc/operations';
 import { DesignOpenDialog, type DesignPreview } from './components/DesignOpenDialog';
+import { ConnectDialog } from './components/ConnectDialog';
+import { analyzeConnections, type ConnectionAnalysis } from './connect/analyze';
+import { buildConnectLayer, type ConnectOptions } from './connect/build';
 import { FileHubDialog, type ExportFormat, type FileHubTab } from './components/FileHubDialog';
 import { ImportPreviewBody } from './components/ImportPreview';
 import { SaveStatus } from './components/SaveStatus';
@@ -107,6 +112,23 @@ const CANVAS_THEME_KEY = 'nmap2flowchart.canvasTheme';
 /** Accent presets, cycled by clicking the logo. Green is the house colour. */
 const ACCENT_KEY = 'nmap2flowchart.accent';
 const ACCENTS = ['green', 'orange', 'purple'] as const;
+
+/**
+ * Above this many cards, offscreen nodes stop being drawn. Below it, React Flow's
+ * culling costs more than it saves – and it can hide a card that was just dragged.
+ */
+const CULL_THRESHOLD = 250;
+
+/**
+ * Below this window width the search field is replaced by the full-width overlay
+ * (styles.css hides `.search` at the same breakpoint), so the keyboard shortcut and
+ * the ✕ button have to open that overlay instead of focusing a hidden input.
+ */
+const SEARCH_OVERLAY_WIDTH = 1000;
+
+/** A handle id is the side of the card the line attaches to. */
+const sideOf = (handle: string | null | undefined): EdgeSide | undefined =>
+  handle === 'l' || handle === 't' || handle === 'r' || handle === 'b' ? handle : undefined;
 type Accent = (typeof ACCENTS)[number];
 
 const readAccent = (): Accent => {
@@ -251,10 +273,13 @@ function Canvas() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [riskOpen, setRiskOpen] = useState(false);
   const [riskSummaryOpen, setRiskSummaryOpen] = useState(false);
+  const [connectOpen, setConnectOpen] = useState(false);
+  const [connectAnalysis, setConnectAnalysis] = useState<ConnectionAnalysis | null>(null);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [dropLayerId, setDropLayerId] = useState<string | null>(null);
   const [dropSectionId, setDropSectionId] = useState<string | null>(null);
   const [nodeDragging, setNodeDragging] = useState(false);
+  const [connecting, setConnecting] = useState(false);
   const [guides, setGuides] = useState<Guide[]>([]);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [linkSource, setLinkSource] = useState<string | null>(null);
@@ -615,12 +640,14 @@ function Canvas() {
    * says how many files landed, including the ones that were not scans.
    */
   const applyLayerBatch = useCallback(
-    ({ doc: next, layerId, added, ok, failed, designFile }: LayerBatch) => {
+    ({ doc: next, layerId, added, ok, failed, designFile, drawioFile }: LayerBatch) => {
       if (added === 0) {
         notify(
-          designFile
-            ? 'A design file replaces the whole diagram – open it from Import / Open → Open design file.'
-            : 'Those files are not nmap XML scans.',
+          drawioFile
+            ? 'A draw.io file opens as a whole diagram – use Import / Open → draw.io diagram.'
+            : designFile
+              ? 'A design file replaces the whole diagram – open it from Import / Open → Open design file.'
+              : 'Those files are not nmap XML scans.',
         );
         return;
       }
@@ -639,7 +666,12 @@ function Canvas() {
     doc,
     apply: applyImport,
     applyLayerBatch,
-    onDesign: setDesignPreview,
+    // A design file or a draw.io drawing opens in its own preview, which the file
+    // panel must step aside for.
+    onDesign: (preview) => {
+      setDesignPreview(preview);
+      setFileHubOpen(false);
+    },
     notify,
   });
 
@@ -682,7 +714,7 @@ function Canvas() {
     (applyRisk: boolean) => {
       if (!designPreview) return;
       const next: DiagramDoc =
-        applyRisk && designPreview.design.risk
+        applyRisk && designPreview.design?.risk
           ? { ...designPreview.doc, risk: designPreview.design.risk.policy }
           : designPreview.doc;
       const { fileName } = designPreview;
@@ -795,6 +827,48 @@ function Canvas() {
     [doc, selection.nodes, centerPoint, loadDoc, addNodeAt],
   );
 
+  const startConnect = useCallback(() => {
+    if (shared.readOnly) {
+      notify('This shared diagram is view-only');
+      return;
+    }
+    if (!doc) {
+      notify('Import a scan first – Try to connect reads the cards already in the diagram');
+      return;
+    }
+    const analysis = analyzeConnections(doc);
+    if (analysis.stats.hosts === 0) {
+      notify('There are no host cards to connect yet');
+      return;
+    }
+    setConnectAnalysis(analysis);
+    setConnectOpen(true);
+  }, [doc, notify, shared.readOnly]);
+
+  /**
+   * Commits the map as one undo step: the source layers are copied, never edited,
+   * so a user who disagrees with the guess undoes back to the untouched diagram.
+   */
+  const applyConnect = useCallback(
+    (options: ConnectOptions, focusLayer: boolean) => {
+      if (!doc || !connectAnalysis) return;
+      const result = buildConnectLayer(doc, connectAnalysis, options);
+      setConnectOpen(false);
+      setConnectAnalysis(null);
+      history.commit(focusLayer ? setFocusedLayer(result.doc, result.layerId) : result.doc);
+      setSelection({ nodes: [], edges: [] });
+      setQuery('');
+      setActiveLayerId(result.layerId);
+      notify(
+        `“${result.layerName}” created · ${result.hosts} hosts · ${result.routes} routes · ${result.links} inferred links${
+          result.switches > 0 ? ` · ${result.switches} switch${result.switches === 1 ? '' : 'es'} outside the frames` : ''
+        }`,
+      );
+      fitSoon();
+    },
+    [doc, connectAnalysis, history, notify, fitSoon],
+  );
+
   const commands = useMemo<Command[]>(() => {
     const list: Command[] = [
       {
@@ -873,6 +947,14 @@ function Canvas() {
       { id: 'add-section', group: 'Add', label: 'Add a section', run: () => handleAddNode('section') },
       { id: 'add-note', group: 'Add', label: 'Add a note', run: () => handleAddNode('note') },
       {
+        id: 'connect',
+        group: 'Review',
+        label: 'Try to connect – build a network map layer',
+        hint: 'routes from traceroutes, MACs and PTR names',
+        run: startConnect,
+        disabled: !doc || shared.readOnly,
+      },
+      {
         id: 'risk',
         group: 'Review',
         label: 'Open the risk summary',
@@ -895,7 +977,7 @@ function Canvas() {
     }
 
     return list;
-  }, [accent, cycleAccent, doc, exportDesign, fitView, handleAddNode, history, legendOpen, openFileHub, snapSize]);
+  }, [accent, cycleAccent, doc, exportDesign, fitView, handleAddNode, history, legendOpen, openFileHub, shared.readOnly, snapSize, startConnect]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -1143,7 +1225,8 @@ function Canvas() {
 
       if (!typing && (event.key === '/' || (meta && event.key.toLowerCase() === 'f'))) {
         event.preventDefault();
-        if (window.matchMedia('(max-width: 760px)').matches) {
+        // Matches the stylesheet: below 1000px the filter lives in the search overlay.
+        if (window.matchMedia(`(max-width: ${SEARCH_OVERLAY_WIDTH}px)`).matches) {
           setMobileSearchOpen(true);
           window.setTimeout(() => searchInputRef.current?.focus(), 0);
         } else {
@@ -1340,7 +1423,11 @@ function Canvas() {
   const handleConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target) return;
-      history.commit((current) => addLink(current, connection.source as string, connection.target as string));
+      // The handle ids are the side the line leaves from and arrives at ('l', 't',
+      // 'r', 'b'); without one, the edge keeps the right → left shorthand.
+      const from = sideOf(connection.sourceHandle);
+      const to = sideOf(connection.targetHandle);
+      history.commit((current) => addLink(current, connection.source as string, connection.target as string, { from, to }));
     },
     [history],
   );
@@ -1525,7 +1612,7 @@ function Canvas() {
       risk,
       subnets: new Set(doc.nodes.filter((node) => node.kind === 'section' && node.cidr).map((node) => node.cidr)).size,
       services: new Set(hosts.flatMap((node) => node.host!.ports.filter((port) => openPorts(node.host!).some((open) => open === port)).map((port) => port.service ?? port.product).filter(Boolean))).size,
-      routes: doc.nodes.filter((node) => node.kind === 'hop').length,
+      routes: doc.nodes.filter((node) => node.kind === 'hop' || (node.kind === 'host' && (node.depth ?? 0) > 0)).length,
       hidden: doc.nodes.filter((node) => {
         const layer = layerMap(doc.layers).get(node.layerId);
         return !layer?.visible;
@@ -1559,10 +1646,29 @@ function Canvas() {
   const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<AppEdge>([]);
 
+  /**
+   * What the filter found, for the count beside the field. Only the scene is counted,
+   * so cards on a hidden layer – or inside a collapsed section – never inflate the
+   * total, and "show only matches" leaves the drawn count equal to the matches.
+   */
+  const filterHits = useMemo(
+    () => ({ matched: graph.nodes.filter((node) => !node.data.dimmed).length, total: graph.nodes.length }),
+    [graph],
+  );
+
   useEffect(() => {
     setNodes(graph.nodes);
     setEdges(graph.edges);
   }, [graph, setNodes, setEdges]);
+
+  /**
+   * Culling offscreen nodes is what keeps a thousand-host scan usable, but React
+   * Flow decides visibility from the parent/position pair it last saw: a card
+   * dropped into, out of, or past a section can be written off as offscreen and
+   * then never comes back until the viewport moves or the page reloads. Small
+   * diagrams – the ones people rearrange by hand – are cheap enough to keep mounted.
+   */
+  const cullOffscreenNodes = nodes.length > CULL_THRESHOLD;
 
   const cloudProject = account.activeProject;
   const accountTone =
@@ -1717,21 +1823,45 @@ function Canvas() {
           )}
 
           <div className="search">
-            <input
-              ref={searchInputRef}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Filter ip, host, port…"
-              spellCheck={false}
-              aria-label="Filter diagram"
-            />
-            <kbd className="search__shortcut" aria-hidden="true">/</kbd>
-            {query.trim().length > 0 && <span className="search__count">{graph.nodes.filter((node) => !node.data.dimmed).length}</span>}
-            {query && (
-              <button type="button" className="search__clear" aria-label="Clear diagram filter" onClick={() => setQuery('')}>
-                ×
-              </button>
-            )}
+            <div className="search__field">
+              <input
+                ref={searchInputRef}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Filter ip, host, port…"
+                spellCheck={false}
+                aria-label="Filter diagram"
+              />
+              {query.trim() ? (
+                <>
+                  <span
+                    className="search__count"
+                    role="status"
+                    title={
+                      onlyMatches
+                        ? `${filterHits.matched} nodes match, the rest are hidden`
+                        : `${filterHits.matched} of ${filterHits.total} nodes match`
+                    }
+                  >
+                    {filterHits.matched}
+                    {onlyMatches ? null : <span className="search__count-total">/{filterHits.total}</span>}
+                  </span>
+                  <button
+                    type="button"
+                    className="search__clear"
+                    aria-label="Clear diagram filter"
+                    title="Clear the filter"
+                    onClick={() => setQuery('')}
+                  >
+                    ×
+                  </button>
+                </>
+              ) : (
+                <kbd className="search__shortcut" aria-hidden="true">
+                  /
+                </kbd>
+              )}
+            </div>
           </div>
 
           <button
@@ -1773,7 +1903,11 @@ function Canvas() {
                 aria-label="Filter diagram"
               />
               <span className="mobile-search__count">
-                {query ? `${graph.nodes.filter((node) => !node.data.dimmed).length} matches` : ''}
+                {query.trim()
+                  ? onlyMatches
+                    ? `${filterHits.matched} match`
+                    : `${filterHits.matched} of ${filterHits.total} match`
+                  : ''}
               </span>
               {query && (
                 <button
@@ -1929,6 +2063,18 @@ function Canvas() {
                       >
                         Re-flow positions
                       </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        disabled={!doc}
+                        title="Copies every host and router onto a new layer and joins them along the paths the scans found"
+                        onClick={() => {
+                          closeMenus();
+                          startConnect();
+                        }}
+                      >
+                        Try to connect · network map layer…
+                      </button>
                     </>
                   )}
                   <button
@@ -2056,7 +2202,7 @@ function Canvas() {
           <input
             ref={fileInput}
             type="file"
-            accept=".xml,.nmap,.json,application/json,application/xml,text/xml"
+            accept=".xml,.nmap,.json,.drawio,.dio,application/json,application/xml,text/xml"
             multiple
             hidden
             onChange={(event) => {
@@ -2102,7 +2248,7 @@ function Canvas() {
         )}
 
         <div
-          className={`canvas${narrowCanvas ? ' canvas--narrow' : ''}`}
+          className={`canvas${narrowCanvas ? ' canvas--narrow' : ''}${connecting ? ' is-connecting' : ''}`}
           ref={canvasRef}
           onDoubleClick={handleCanvasDoubleClick}
           onPointerMove={(event) => {
@@ -2344,9 +2490,12 @@ function Canvas() {
             onNodesDelete={handleNodesDelete}
             onEdgesDelete={handleEdgesDelete}
             onConnect={handleConnect}
+            onConnectStart={() => setConnecting(true)}
+            onConnectEnd={() => setConnecting(false)}
             nodesDraggable={!shared.readOnly}
             nodesConnectable={!shared.readOnly}
-            onlyRenderVisibleElements
+            connectionMode={ConnectionMode.Loose}
+            onlyRenderVisibleElements={cullOffscreenNodes}
             deleteKeyCode={null}
             colorMode={theme}
             minZoom={0.08}
@@ -2519,7 +2668,7 @@ function Canvas() {
                   </>
                 )}
               </p>
-              <pre>nmap -sV -sC --traceroute -oX scan.xml 10.0.0.0/24</pre>
+              <pre>nmap -sV -sC -O --traceroute -oX scan.xml 10.0.0.0/24</pre>
               <div className="empty-state__actions">
                 <button
                   type="button"
@@ -2682,6 +2831,7 @@ function Canvas() {
           fileInput.current?.click();
         }}
         onChooseDesign={openDesign}
+        onChooseDrawio={openDesign}
         onBlank={() => {
           setFileHubOpen(false);
           loadDoc(emptyDoc(), 'Blank diagram – use the Add dock to create nodes');
@@ -2758,6 +2908,16 @@ function Canvas() {
           setRiskSummaryOpen(false);
         }}
         onExport={exportRiskReport}
+      />
+
+      <ConnectDialog
+        open={connectOpen}
+        analysis={connectAnalysis}
+        onClose={() => {
+          setConnectOpen(false);
+          setConnectAnalysis(null);
+        }}
+        onCreate={applyConnect}
       />
     </div>
   );

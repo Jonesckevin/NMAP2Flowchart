@@ -54,7 +54,7 @@ const TIP_GROUPS: { title: string; tips: Tip[] }[] = [
       { keys: 'Select → Connect', what: 'Click a node, hit Connect, then click the second node. Esc cancels.' },
       {
         keys: 'Inspector → Change icon',
-        what: 'Imports pick an icon from the hostname/vendor model, the fingerprinted platform, the NIC vendor and the open ports – in that order, so a router on OpenWrt stays a router. Change icon overrides it.',
+        what: 'Imports read the scan in the order nmap trusts: the device category nmap assigned (osclass), the service devicetype/ostype, CPE identifiers and NSE output, then the model or hostname, then the fingerprinted platform, the NIC vendor and the open ports. A router on OpenWrt stays a router. Change icon overrides it.',
       },
       {
         keys: 'Inspector → Accent',
@@ -65,12 +65,12 @@ const TIP_GROUPS: { title: string; tips: Tip[] }[] = [
         what: 'Opens the risk summary: every level, the ports that raised it and the hosts listening on them. Switch between the current view and the whole diagram, filter the tree, then export JSON or CSV for a report.',
       },
       {
-        keys: 'Drag a node by its dot',
-        what: 'Drop on another node to draw a connection. Sections have dots too, so you can link subnets.',
+        keys: 'Drag a node by a connector',
+        what: 'Every card and section has a connector point on each of its four sides, shown while you hover or select it. Drag from one to any point of another node: the line leaves the side you started from and arrives at the side you dropped on. Sections have connectors too, so you can link subnets.',
       },
       {
         keys: 'Select a link',
-        what: 'Pick a Path (Curve, Straight, Step, Square) and a Line (Solid, Dashed, Dotted) in the inspector, or from the right-click menu on the link.',
+        what: 'Pick a Path (Curve, Straight, Step, Square), a Line (Solid, Dashed, Dotted) and an Arrow – at the target, at the source, at both ends or none – in the inspector, or the path and line from the right-click menu. A single selected link also lets you move the side it leaves and arrives on.',
       },
       {
         keys: 'Add → Hop',
@@ -103,6 +103,10 @@ const TIP_GROUPS: { title: string; tips: Tip[] }[] = [
         keys: '⋯ → Add scan as new layer',
         what: 'Drop in another scan file and it lands on its own layer. Pick several files to get one layer each; the newest becomes active. The import preview opens with New layer already selected.',
       },
+      {
+        keys: '⋯ → Try to connect',
+        what: 'Reads every layer – traceroute hops, MAC addresses, PTR names and /24s – and copies the diagram onto a new layer as a map: origin → router → subnet, with dashed routes for traced paths and dotted links for hosts joined only by their subnet. Routers and switches it can name are kept outside the subnet frames and chained in front of them, so a frame hangs behind the hardware that serves it. The preview lists the gateways, the devices and the inferred links first; the source layers do not move, and undo removes the whole map.',
+      },
     ],
   },
   {
@@ -123,12 +127,20 @@ const TIP_GROUPS: { title: string; tips: Tip[] }[] = [
         what: 'risk:any (or risk:) flags every host with a matched port, risk:high the ones at the top level, and risk:critical / risk:medium / risk:low a level by name.',
       },
       {
+        keys: 'Filter field',
+        what: 'Type in the field at the top right (or press /) to dim everything that does not match. The count inside the field shows how many cards match out of the whole diagram, so “0/24” tells you the filter is too narrow; × clears it. Below 1000 px the same field opens full width from the ⌕ button.',
+      },
+      {
         keys: '⋯ → Export SVG / PNG / PDF',
         what: 'Print-ready output on a white page: vector SVG, 300 dpi PNG, or one PDF page sized to the diagram for plotter prints.',
       },
       {
         keys: 'Import / Export',
-        what: 'One panel for files. Import / Open takes an nmap XML scan (reviewed before it lands, then Merge, Replace or New layer), adds scans as new layers, reopens a design file, starts a blank diagram, or loads the sample scan. Export writes the design file, Mermaid, draw.io, SVG, PNG or PDF, and states the scope first. On an empty canvas the button opens on Import; with a diagram open it opens on Export.',
+        what: 'One panel for files. Import / Open takes an nmap XML scan (reviewed before it lands, then Merge, Replace or New layer), adds scans as new layers, reopens a design file, opens a draw.io diagram, starts a blank diagram, or loads the sample scan. Export writes the design file, Mermaid, draw.io, SVG, PNG or PDF, and states the scope first. On an empty canvas the button opens on Import; with a diagram open it opens on Export.',
+      },
+      {
+        keys: 'Import → draw.io diagram',
+        what: 'Opens a .drawio file, recognised by its content rather than its name, so a drawing made in diagrams.net or one exported from here and edited there comes back as cards. A shape with an address in its label becomes a host card (ports, MAC, hostname and the emblem above the title are read from it), a shape drawn around other shapes becomes a section, a shape with neither becomes a note, and lines become connections with their sides and arrowheads. The preview counts what it found; opening it replaces the diagram, and undo brings the previous one back.',
       },
       {
         keys: 'Save',
@@ -148,7 +160,7 @@ const TIP_GROUPS: { title: string; tips: Tip[] }[] = [
       },
       {
         keys: 'Mermaid / draw.io',
-        what: 'Export a text diagram you can paste into a wiki or open in draw.io.',
+        what: 'Export a text diagram you can paste into a wiki or open in draw.io – and read a .drawio file back in through Import / Open.',
       },
       {
         keys: 'Live chip (shared server)',

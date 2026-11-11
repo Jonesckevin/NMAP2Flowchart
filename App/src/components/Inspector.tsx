@@ -1,11 +1,17 @@
 import { useState } from 'react';
 import { NodeIcon } from '../icons/NodeIcon';
 import {
+  EDGE_ARROWS,
+  EDGE_ARROW_LABELS,
   EDGE_LINES,
   EDGE_PATHS,
   EDGE_PATH_LABELS,
+  EDGE_SIDES,
+  EDGE_SIDE_LABELS,
+  edgeArrow,
   edgeLine,
   edgePath,
+  edgeSides,
   flattenLayers,
   LAYER_COLORS,
   nodeTitle,
@@ -13,6 +19,7 @@ import {
   type DiagramEdge,
   type DiagramNode,
   type EdgePath,
+  type EdgeSide,
 } from '../doc/types';
 import { discoveryOnly, openPorts, type NmapHost, type NmapMac, type NmapOsMatch, type NmapPort } from '../model/types';
 import { hexToRgba, portsByLevel, type RiskPolicy } from '../doc/risk';
@@ -24,6 +31,8 @@ const PATH_SAMPLES: Record<EdgePath, string> = {
   step: 'M3 17 H 20 V 3 H 37',
   smoothstep: 'M3 17 H 15 Q 20 17 20 12 V 8 Q 20 3 25 3 H 37',
 };
+
+const EDGE_SIDE_ARROWS: Record<EdgeSide, string> = { l: '←', t: '↑', r: '→', b: '↓' };
 
 const PATH_HINTS: Record<EdgePath, string> = {
   curve: 'Curve – a soft bezier between the two nodes',
@@ -467,7 +476,7 @@ function NodeDetails({
               className="input mono"
               aria-label="Scan command"
               value={node.address ?? ''}
-              placeholder="nmap -sV -sC --traceroute -oX scan.xml"
+              placeholder="nmap -sV -sC -O --traceroute -oX scan.xml"
               onChange={(event) => onPatchNode(node.id, { address: event.target.value })}
             />
           </Field>
@@ -642,11 +651,15 @@ function NodeDetails({
                     addr: entry.addr.trim().toUpperCase(),
                     vendor: entry.vendor?.trim() || undefined,
                   }));
-                  const primary = cleaned.find((entry) => entry.addr.length > 0);
+                  const filled = cleaned.filter((entry) => entry.addr.length > 0);
+                  // One filled address is the host's `mac`; anything else – several
+                  // rows, or a row the user just opened and has not typed into yet –
+                  // is kept as a list so the text box stays on screen while it is empty.
+                  const asList = cleaned.length > 1 || filled.length === 0;
                   patchHost({
-                    macs: cleaned.length > 1 ? cleaned : undefined,
-                    mac: primary?.addr,
-                    vendor: primary?.vendor,
+                    macs: asList ? cleaned : undefined,
+                    mac: filled[0]?.addr,
+                    vendor: filled[0]?.vendor,
                   });
                 }}
               />
@@ -759,6 +772,8 @@ function EdgeDetails({
   const ids = edgeIds.length > 0 ? edgeIds : [edge.id];
   const current = edgeLine(edge);
   const currentPath = edgePath(edge);
+  const currentArrow = edgeArrow(edge);
+  const sides = edgeSides(edge);
 
   return (
     <aside className="inspector">
@@ -808,6 +823,62 @@ function EdgeDetails({
             ))}
           </div>
         </Field>
+        <Field label="Arrow">
+          <div className="arrow-picker">
+            {EDGE_ARROWS.map((arrow) => (
+              <button
+                key={arrow}
+                type="button"
+                className={`arrow-picker__option${currentArrow === arrow ? ' is-active' : ''}`}
+                title={EDGE_ARROW_LABELS[arrow]}
+                aria-label={EDGE_ARROW_LABELS[arrow]}
+                onClick={() => onPatchEdges(ids, { arrow })}
+              >
+                <svg viewBox="0 0 34 12" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+                  <path d="M2 6h30" />
+                  {arrow === 'target' || arrow === 'both' ? <path d="M27 2l4 4-4 4" /> : null}
+                  {arrow === 'source' || arrow === 'both' ? <path d="M7 2L3 6l4 4" /> : null}
+                </svg>
+              </button>
+            ))}
+          </div>
+        </Field>
+        {edgeCount === 1 && (
+          <>
+            <Field label={`Leaves ${EDGE_SIDE_LABELS[sides.from]}`}>
+              <div className="side-picker">
+                {EDGE_SIDES.map((side) => (
+                  <button
+                    key={side}
+                    type="button"
+                    className={`side-picker__option${sides.from === side ? ' is-active' : ''}`}
+                    title={`Leave ${EDGE_SIDE_LABELS[side].toLowerCase()}`}
+                    aria-label={`Leave ${EDGE_SIDE_LABELS[side].toLowerCase()}`}
+                    onClick={() => onPatchEdge(edge.id, { from: side })}
+                  >
+                    {EDGE_SIDE_ARROWS[side]}
+                  </button>
+                ))}
+              </div>
+            </Field>
+            <Field label={`Arrives ${EDGE_SIDE_LABELS[sides.to]}`}>
+              <div className="side-picker">
+                {EDGE_SIDES.map((side) => (
+                  <button
+                    key={side}
+                    type="button"
+                    className={`side-picker__option${sides.to === side ? ' is-active' : ''}`}
+                    title={`Arrive from the ${EDGE_SIDE_LABELS[side].toLowerCase()}`}
+                    aria-label={`Arrive from the ${EDGE_SIDE_LABELS[side].toLowerCase()}`}
+                    onClick={() => onPatchEdge(edge.id, { to: side })}
+                  >
+                    {EDGE_SIDE_ARROWS[side]}
+                  </button>
+                ))}
+              </div>
+            </Field>
+          </>
+        )}
         <Field label="Label">
           <input
             className="input"

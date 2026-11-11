@@ -1,7 +1,7 @@
 export const SAMPLE_SCAN_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE nmaprun>
 <?xml-stylesheet href="file:///usr/bin/../share/nmap/nmap.xsl" type="text/xsl"?>
-<nmaprun scanner="nmap" args="nmap -sV -sC --traceroute -oX lab-scan.xml 10.0.0.0/24 10.10.20.0/24" start="1761998400" version="7.95" xmloutputversion="1.05">
+<nmaprun scanner="nmap" args="nmap -sV -sC -O --traceroute -oX lab-scan.xml 10.0.0.0/24 10.10.20.0/24" start="1761998400" version="7.95" xmloutputversion="1.05">
 <scaninfo type="syn" protocol="tcp" numservices="1000" services="1,3-4,6-7,9,13,21-26"/>
 <verbose level="1"/>
 <debugging level="0"/>

@@ -72,6 +72,7 @@ export function FileHubDialog({
   onChooseScan,
   onChooseLayers,
   onChooseDesign,
+  onChooseDrawio,
   onBlank,
   onSample,
   onChooseMode,
@@ -93,6 +94,7 @@ export function FileHubDialog({
   onChooseScan: () => void;
   onChooseLayers: () => void;
   onChooseDesign: () => void;
+  onChooseDrawio: () => void;
   onBlank: () => void;
   onSample: () => void;
   onChooseMode: (mode: ImportMode) => void;
@@ -283,6 +285,18 @@ export function FileHubDialog({
                   <span>
                     Reopen a diagram exported from NMAP2Flowchart, with its layers, notes, icons and
                     risk levels.
+                  </span>
+                </span>
+              </button>
+
+              <button type="button" className="import-option" onClick={onChooseDrawio} disabled={importing}>
+                <FileGlyph name="drawio" />
+                <span className="import-option__body">
+                  <strong>draw.io diagram (.drawio)</strong>
+                  <span>
+                    A drawing from diagrams.net – or one exported from here. A shape with an address in
+                    its label becomes a host card, a frame around other shapes a section, a line a
+                    connection.
                   </span>
                 </span>
               </button>

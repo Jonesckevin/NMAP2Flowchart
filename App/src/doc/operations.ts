@@ -6,6 +6,7 @@ import {
   type DiagramDoc,
   type DiagramEdge,
   type DiagramNode,
+  type EdgeSide,
   type Layer,
 } from './types';
 import type { NmapHost } from '../model/types';
@@ -151,14 +152,26 @@ export function duplicateNode(doc: DiagramDoc, id: string): { doc: DiagramDoc; n
   return { doc: { ...doc, nodes }, newId };
 }
 
-export function addLink(doc: DiagramDoc, source: string, target: string): DiagramDoc {
+export function addLink(
+  doc: DiagramDoc,
+  source: string,
+  target: string,
+  sides?: { from?: EdgeSide; to?: EdgeSide },
+): DiagramDoc {
   if (source === target) return doc;
   const exists = doc.edges.some(
     (edge) =>
       (edge.source === source && edge.target === target) || (edge.source === target && edge.target === source),
   );
   if (exists) return doc;
-  const edge: DiagramEdge = { id: uniqueId('link'), source, target, kind: 'link' };
+  const edge: DiagramEdge = {
+    id: uniqueId('link'),
+    source,
+    target,
+    kind: 'link',
+    ...(sides?.from ? { from: sides.from } : {}),
+    ...(sides?.to ? { to: sides.to } : {}),
+  };
   return { ...doc, edges: [...doc.edges, edge] };
 }
 

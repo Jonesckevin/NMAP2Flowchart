@@ -52,9 +52,33 @@ const SCAN = `<?xml version="1.0" encoding="UTF-8"?>
 </nmaprun>
 `;
 
+const DRAWIO = `<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" version="24.7.8" type="device">
+  <diagram id="smoke" name="Page-1">
+    <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="lan" value="&lt;b&gt;10.20.0.0/24&lt;/b&gt;" style="rounded=0;verticalAlign=top;align=left;fillColor=#f6f8fb;strokeColor=#b6c1d1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="120" width="520" height="300" as="geometry"/>
+        </mxCell>
+        <mxCell id="gw" value="&lt;b&gt;📡 10.20.0.1&lt;/b&gt;&lt;br&gt;gw.smoke.internal" style="rounded=1;fillColor=#ffffff;strokeColor=#c3ccd9;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="200" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="pc" value="&lt;b&gt;🖥️ workstation&lt;/b&gt;&lt;br&gt;10.20.0.5&lt;br&gt;445/microsoft-ds" style="rounded=1;fillColor=#ffffff;strokeColor=#c3ccd9;" vertex="1" parent="lan">
+          <mxGeometry x="24" y="60" width="200" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="wire" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#8ba1b8;dashed=1;dashPattern=9 5;" edge="1" parent="1" source="gw" target="pc">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
+`;
+
 const failures = [];
-const step = async (name, run) => {
-  try {
+const step = async (name, run) => {  try {
     await run();
     console.log(`  ok   ${name}`);
   } catch (error) {
@@ -200,6 +224,219 @@ async function main() {
     assert(rows > 5, `expected a list of commands, saw ${rows}`);
     await page.keyboard.press('Escape');
     await page.waitForTimeout(200);
+  });
+
+  await step('the diagram filter shows how many cards match', async () => {
+    const field = page.getByRole('textbox', { name: 'Filter diagram' });
+    await field.fill('22');
+    await page.waitForTimeout(450);
+    const text = (await page.locator('.search__count').textContent())?.trim() ?? '';
+    assert(/^\d+\/\d+$/.test(text), `the count reads matches of total, saw “${text}”`);
+
+    // The count and the clear button are laid out beside the text, never on top of it.
+    const laidOut = await page.evaluate(() => {
+      const box = (selector) => document.querySelector(selector)?.getBoundingClientRect();
+      const input = box('.search__field input');
+      const count = box('.search__count');
+      const clear = box('.search__clear');
+      const pill = box('.search__field');
+      if (!input || !count || !clear || !pill) return 'missing';
+      return input.right <= count.left && count.right <= clear.left && clear.right <= pill.right + 1;
+    });
+    assert(laidOut === true, 'the count and the clear button sit beside the text inside the field');
+    await field.fill('');
+    await page.waitForTimeout(300);
+
+    // Below 1000px the field gives way to the full-width search bar.
+    await page.setViewportSize({ width: 900, height: 800 });
+    await page.waitForTimeout(450);
+    assert(!(await page.locator('.search').isVisible()), 'the inline field is hidden on a narrow window');
+    await page.keyboard.press('/');
+    await page.waitForTimeout(400);
+    assert(await page.locator('.mobile-search').isVisible(), 'the search shortcut opens the full-width bar');
+    await field.fill('10.0.0');
+    await page.waitForTimeout(350);
+    const overlay = (await page.locator('.mobile-search__count').textContent())?.trim() ?? '';
+    assert(/\d+ of \d+ match/.test(overlay), `the full-width bar counts too, saw “${overlay}”`);
+    await field.fill('');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.waitForTimeout(500);
+  });
+
+  await step('Try to connect builds a map layer that undo removes', async () => {
+    await page.locator('button[aria-label="More actions"]').click();
+    await page.getByRole('menuitem', { name: /Try to connect/ }).click();
+    const dialog = page.locator('[aria-modal="true"]').first();
+    await dialog.waitFor({ timeout: 10_000 });
+    const preview = await dialog.textContent();
+    assert(/routers/.test(preview ?? ''), 'the preview counts the routers it found');
+    await page.getByRole('button', { name: 'Create map layer' }).click();
+    await page.waitForTimeout(900);
+    const mapLayers = page.locator('[data-layer-id]', { hasText: 'Network map' });
+    assert((await mapLayers.count()) > 0, 'the map lands on its own layer');
+    await page.keyboard.press('Control+z');
+    await page.waitForTimeout(700);
+    assert(
+      (await page.locator('[data-layer-id]', { hasText: 'Network map' }).count()) === 0,
+      'undo removes the map layer again',
+    );
+  });
+
+  await step('a card stays on the canvas while it is dragged to the edge', async () => {
+    // The canvas culls nodes outside the viewport; a card dropped at the edge used
+    // to vanish until a reload. Dragging one out there is the regression check.
+    const card = page.locator('.react-flow__node[data-id^="host:"]').first();
+    const box = await card.boundingBox();
+    const canvas = await page.locator('.react-flow').boundingBox();
+    const start = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const target = { x: canvas.x + canvas.width - 60, y: canvas.y + canvas.height - 60 };
+
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    for (let move = 1; move <= 6; move += 1) {
+      await page.mouse.move(
+        start.x + ((target.x - start.x) * move) / 6,
+        start.y + ((target.y - start.y) * move) / 6,
+      );
+    }
+    await page.waitForTimeout(150);
+    const duringDrag = await card.count();
+    await page.mouse.up();
+    await page.waitForTimeout(350);
+
+    assert(duringDrag === 1, 'the dragged card is still mounted at the edge of the viewport');
+    assert((await card.count()) === 1, 'the card is still on the canvas after the drop');
+    await page.keyboard.press('Control+z');
+    await page.waitForTimeout(400);
+  });
+
+  await step('a connection offers four sides and four arrowheads', async () => {
+    // Dragging near the edge auto-pans the canvas, so put the diagram back in view.
+    await page.locator('.react-flow__controls-fitview').click();
+    await page.waitForTimeout(600);
+
+    const card = page.locator('.react-flow__node[data-id^="host:"]').first();
+    await card.hover();
+    const handles = await card.locator('.react-flow__handle').count();
+    assert(handles === 4, `expected four connector points on a card, saw ${handles}`);
+
+    const middle = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('.react-flow__edge .react-flow__edge-path')).map((path) => {
+        const point = path.getPointAtLength(path.getTotalLength() / 2);
+        const ct = path.getScreenCTM();
+        return { x: point.x * ct.a + point.y * ct.c + ct.e, y: point.x * ct.b + point.y * ct.d + ct.f };
+      }),
+    );
+    assert(middle.length > 0, 'the sample draws at least one connection');
+
+    let selected = 0;
+    for (const point of middle) {
+      await page.mouse.click(point.x, point.y);
+      await page.waitForTimeout(150);
+      selected = await page.locator('.react-flow__edge.selected').count();
+      if (selected > 0) break;
+    }
+    assert(selected === 1, 'clicking a connection selects it');
+
+    await page.getByRole('button', { name: 'Point both ways' }).click();
+    await page.waitForTimeout(350);
+    const markers = await page.evaluate(() => {
+      const path = document.querySelector('.react-flow__edge.selected .react-flow__edge-path');
+      return path
+        ? { start: path.getAttribute('marker-start'), end: path.getAttribute('marker-end') }
+        : null;
+    });
+    assert(markers?.start && markers?.end, 'both ends of the edge draw an arrowhead');
+
+    await page.getByRole('button', { name: 'Leave bottom' }).click();
+    await page.waitForTimeout(300);
+    const active = await page.getByRole('button', { name: 'Leave bottom' }).getAttribute('class');
+    assert(/is-active/.test(active ?? ''), 'the side picker remembers the side the line leaves');
+    await page.keyboard.press('Control+z');
+    await page.waitForTimeout(300);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+  });
+
+  await step('a MAC address can be typed onto a card', async () => {
+    // A card with no MAC used to swallow + Add MAC: the blank row was dropped from
+    // the document before it could be drawn, so no text box ever appeared.
+    const cards = page.locator('.react-flow__node[data-id^="host:"]');
+    let picked = false;
+    for (let index = 0; index < (await cards.count()); index += 1) {
+      await cards.nth(index).click({ force: true, position: { x: 30, y: 12 } });
+      await page.waitForTimeout(150);
+      if ((await page.locator('input[aria-label^="MAC "]').count()) === 0) {
+        picked = true;
+        break;
+      }
+    }
+    assert(picked, 'a card without a MAC is selected');
+
+    await page.getByRole('button', { name: '+ Add MAC' }).click();
+    await page.waitForTimeout(250);
+    const box = page.locator('input[aria-label="MAC 1"]');
+    assert((await box.count()) === 1, 'adding a MAC opens a text box for it');
+    await box.fill('AA:BB:CC:DD:EE:FF');
+    await page.waitForTimeout(300);
+    assert((await box.inputValue()) === 'AA:BB:CC:DD:EE:FF', 'the address can be typed into it');
+    await box.fill('');
+    await page.waitForTimeout(300);
+    assert((await box.count()) === 1, 'the row stays while it is empty');
+  });
+
+  await step('a draw.io diagram opens as cards and sections', async () => {
+    const drawioPath = path.join(workDir, 'smoke.drawio');
+    await writeFile(drawioPath, DRAWIO, 'utf8');
+
+    // Dropping the file works the same as picking it: the content decides.
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+    await page.evaluate((xml) => {
+      const data = new DataTransfer();
+      data.items.add(new File([xml], 'dropped.drawio', { type: 'application/xml' }));
+      const target = document.querySelector('.react-flow') ?? document.body;
+      for (const type of ['dragover', 'drop']) {
+        target.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: data }));
+      }
+    }, DRAWIO);
+    await page.locator('.design-open').waitFor({ timeout: 10_000 });
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await page.waitForTimeout(400);
+
+    await clickButton('Import / Export');
+    await page.waitForTimeout(400);
+    await page.getByRole('tab', { name: 'Import / Open' }).click();
+    await page.waitForTimeout(300);
+
+    const [chooser] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      page.getByRole('button', { name: /draw\.io diagram \(\.drawio\)/ }).click(),
+    ]);
+    await chooser.setFiles(drawioPath);
+
+    const dialog = page.locator('.design-open');
+    await dialog.waitFor({ timeout: 10_000 });
+    const text = await dialog.textContent();
+    assert(/draw\.io diagram/.test(text ?? ''), 'the preview names the format it read');
+    assert(/2 hosts/.test(text ?? '') && /1 section/.test(text ?? ''), 'the preview counts the cards it found');
+    await page.getByRole('button', { name: 'Replace diagram' }).click();
+    await page.waitForTimeout(900);
+
+    assert(
+      (await page.locator('.react-flow__node', { hasText: 'workstation' }).count()) > 0,
+      'the imported card is on the canvas',
+    );
+    assert(
+      (await page.locator('.react-flow__node', { hasText: '10.20.0.0/24' }).count()) > 0,
+      'the frame the drawing held is a section',
+    );
+    assert(
+      (await page.locator('.react-flow__node', { hasText: '10.0.0.40' }).count()) === 0,
+      'the diagram it replaced is gone',
+    );
   });
 
   await step('the console stays clean', async () => {

@@ -179,8 +179,8 @@ body {
   .topbar__actions {
     gap: 5px;
   }
-  .search input {
-    flex-basis: 160px;
+  .search__field {
+    width: 168px;
   }
 }
 
@@ -552,7 +552,19 @@ body {
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  margin-left: 1px;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.search__clear:hover {
+  color: var(--text);
+  background: var(--surface-2);
 }
 
 .topbar__divider {
@@ -569,32 +581,45 @@ body {
   min-width: 0;
 }
 
-/* The input is the one control that may shrink: with a fixed width it spilled out
-   of its flex item and covered the Fit button on narrower windows. */
-.search input {
+/* The bordered field is the row itself, so the count and the clear button are laid
+   out beside the text instead of being positioned on top of it. */
+.search__field {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   width: 190px;
-  min-width: 0;
-  flex: 1 1 190px;
+  /* Narrow windows squeeze the row; the field keeps enough room for the count and
+     the clear button rather than collapsing to a sliver of placeholder. */
+  min-width: 124px;
   height: 30px;
-  padding: 0 10px;
+  padding: 0 7px 0 10px;
   border-radius: 8px;
   border: 1px solid var(--line-strong);
   background: var(--surface-0);
-  color: var(--text);
-  font-size: 12px;
-  outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.search input::placeholder {
+/* The input is the one control that may shrink: with a fixed width it spilled out
+   of its flex item and covered the Fit button on narrower windows. */
+.search__field input {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+}
+
+.search__field input::placeholder {
   color: #5b6a7d;
 }
 
 .search__shortcut {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
+  flex: none;
   min-width: 18px;
   height: 18px;
   display: grid;
@@ -608,27 +633,17 @@ body {
   pointer-events: none;
 }
 
-.search input:not(:placeholder-shown) {
-  padding-right: 30px;
-}
-
-.search__count {
-  right: 30px;
-}
-
-.search input:focus {
+.search__field:focus-within {
   border-color: color-mix(in srgb, var(--accent) 52%, transparent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .search__count {
-  position: absolute;
-  right: 8px;
+  flex: none;
   font-family: var(--mono);
   font-size: 10px;
   color: var(--muted);
-  background: var(--surface-0);
-  padding-left: 4px;
+  white-space: nowrap;
 }
 
 .btn {
@@ -853,14 +868,78 @@ body {
   height: 9px;
   background: var(--accent);
   border: 2px solid var(--line);
-  opacity: 0.55;
+  /* Four points per card: only show them when the card is in play. */
+  opacity: 0;
   transition: opacity 0.14s, transform 0.14s;
 }
 
 .react-flow__node:hover .node-handle,
-.react-flow__node.selected .node-handle {
+.react-flow__node.selected .node-handle,
+.canvas.is-connecting .node-handle {
   opacity: 1;
   transform: scale(1.15);
+}
+
+.arrow-picker {
+  display: flex;
+  gap: 6px;
+}
+
+.arrow-picker__option {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.arrow-picker__option svg {
+  width: 32px;
+  height: 12px;
+}
+
+.arrow-picker__option:hover {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.arrow-picker__option.is-active {
+  border-color: var(--accent);
+  background: var(--surface-3);
+  color: var(--accent);
+}
+
+.side-picker {
+  display: flex;
+  gap: 6px;
+}
+
+.side-picker__option {
+  flex: 1;
+  padding: 4px 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.side-picker__option:hover {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.side-picker__option.is-active {
+  border-color: var(--accent);
+  background: var(--surface-3);
+  color: var(--accent);
 }
 
 .node-icon {
@@ -1082,6 +1161,17 @@ body {
   background: var(--surface-2);
   border: 1px solid var(--line-strong);
   color: #e08a8a;
+  font-size: 8.5px;
+  letter-spacing: 0.06em;
+  padding: 1px 4px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.tag--vm {
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line-strong));
+  color: var(--text);
   font-size: 8.5px;
   letter-spacing: 0.06em;
   padding: 1px 4px;
@@ -3286,9 +3376,6 @@ select.input {
   .brand__text span {
     display: none;
   }
-  .search input {
-    width: 132px;
-  }
   .layer-panel {
     position: absolute;
     top: 0;
@@ -3299,7 +3386,10 @@ select.input {
   }
 }
 
-@media (max-width: 760px) {
+/* Below this width the action row cannot hold a readable field beside every button,
+   so the filter moves to the full-width search bar the phone layout already uses –
+   it shows the same "X of Y match" count and the same clear button. */
+@media (max-width: 1000px) {
   .search {
     display: none;
   }
@@ -3353,6 +3443,9 @@ select.input {
     font-size: 11px;
     white-space: nowrap;
   }
+}
+
+@media (max-width: 760px) {
   .inspector {
     position: absolute;
     top: 0;
@@ -3430,11 +3523,14 @@ select.input {
 }
 
 @media (min-width: 761px) {
-  .mobile-search-button,
-  .mobile-search {
+  .mobile-drawer-backdrop {
     display: none;
   }
-  .mobile-drawer-backdrop {
+}
+
+@media (min-width: 1001px) {
+  .mobile-search-button,
+  .mobile-search {
     display: none;
   }
 }
@@ -3890,6 +3986,175 @@ select.input {
   height: 14px;
   border-radius: 4px;
   border: 1px solid rgba(0, 0, 0, 0.35);
+}
+.connect-dialog {
+  width: min(620px, calc(100vw - 32px));
+}
+.connect-dialog__lede {
+  margin: 12px 0 0;
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.connect-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.connect-kinds li {
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-soft);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.connect-kinds li b {
+  color: var(--text);
+  font-weight: 600;
+}
+.connect-kinds--os li {
+  border-style: dashed;
+}
+.connect-kinds--vm li {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+  color: var(--text);
+}
+.connect-findings {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.connect-finding {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.015);
+}
+.connect-finding__badge {
+  align-self: start;
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  background: var(--line);
+}
+.connect-finding.is-route .connect-finding__badge {
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+.connect-finding.is-mac .connect-finding__badge {
+  color: #2b1503;
+  background: #f0a25c;
+}
+.connect-finding.is-name .connect-finding__badge {
+  color: #1b0730;
+  background: #c084fc;
+}
+.connect-finding.is-device .connect-finding__badge {
+  color: #04212b;
+  background: #5cc8f0;
+}
+.connect-finding strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.connect-finding em {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.connect-dialog__more {
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.connect-dialog__more:hover {
+  text-decoration: underline;
+}
+.connect-options {
+  display: grid;
+  gap: 2px;
+  margin: 18px 0 0;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+.connect-options legend {
+  padding: 0 6px;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.connect-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 6px 0;
+  cursor: pointer;
+}
+.connect-option input {
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+}
+.connect-option.is-empty {
+  cursor: default;
+  opacity: 0.55;
+}
+.connect-option strong {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+.connect-option strong b {
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--line);
+  color: var(--text-soft);
+  font-size: 10px;
+  font-weight: 600;
+}
+.connect-option em {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.45;
+}
+.connect-dialog__footnote {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
 }
 @media (max-width: 760px) {
   .autosave-status {

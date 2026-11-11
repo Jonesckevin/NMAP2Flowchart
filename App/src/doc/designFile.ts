@@ -1,8 +1,10 @@
 import { openPorts, type NmapHost, type NmapPort } from '../model/types';
 import { normalizeRiskPolicy, type RiskPolicy, type RiskScope } from './risk';
 import {
+  EDGE_ARROWS,
   EDGE_LINES,
   EDGE_PATHS,
+  EDGE_SIDES,
   LAYER_COLORS,
   MAIN_LAYER,
   type DiagramDoc,
@@ -133,6 +135,9 @@ function repairPorts(value: unknown): NmapPort[] {
       product: text(raw?.product) || undefined,
       version: text(raw?.version) || undefined,
       extrainfo: text(raw?.extrainfo) || undefined,
+      devicetype: text(raw?.devicetype) || undefined,
+      ostype: text(raw?.ostype) || undefined,
+      cpe: Array.isArray(raw?.cpe) ? raw.cpe.filter((item): item is string => typeof item === 'string') : undefined,
       scripts: (Array.isArray(raw?.scripts) ? raw.scripts : []).flatMap((script) => {
         const item = record(script);
         const id = text(item?.id);
@@ -163,7 +168,28 @@ function repairHost(value: unknown): NmapHost | null {
     os: (Array.isArray(raw.os) ? raw.os : []).flatMap((entry) => {
       const item = record(entry);
       const name = text(item?.name);
-      return name ? [{ name, accuracy: typeof item?.accuracy === 'number' ? item.accuracy : 0 }] : [];
+      if (!name) return [];
+      const classes = (Array.isArray(item?.classes) ? item.classes : []).flatMap((value) => {
+        const cls = record(value);
+        const type = text(cls?.type);
+        if (!type) return [];
+        return [
+          {
+            type,
+            vendor: text(cls?.vendor) || undefined,
+            osfamily: text(cls?.osfamily) || undefined,
+            osgen: text(cls?.osgen) || undefined,
+            accuracy: typeof cls?.accuracy === 'number' ? cls.accuracy : 0,
+          },
+        ];
+      });
+      return [
+        {
+          name,
+          accuracy: typeof item?.accuracy === 'number' ? item.accuracy : 0,
+          ...(classes.length > 0 ? { classes } : {}),
+        },
+      ];
     }),
     ports: repairPorts(raw.ports),
     portsScanned: raw.portsScanned === false ? false : undefined,
@@ -248,6 +274,9 @@ function repairEdges(value: unknown, nodes: DiagramNode[]): { edges: DiagramEdge
     const kind: EdgeKind = raw.kind === 'route' ? 'route' : 'link';
     const line = EDGE_LINES.find((item) => item === raw.line);
     const path = EDGE_PATHS.find((item) => item === raw.path);
+    const from = EDGE_SIDES.find((side) => side === raw.from);
+    const to = EDGE_SIDES.find((side) => side === raw.to);
+    const arrow = EDGE_ARROWS.find((style) => style === raw.arrow);
     seen.add(id);
     edges.push({
       id,
@@ -257,6 +286,9 @@ function repairEdges(value: unknown, nodes: DiagramNode[]): { edges: DiagramEdge
       label: text(raw.label) || undefined,
       line,
       path,
+      from,
+      to,
+      arrow,
     });
   }
   return { edges, dropped };

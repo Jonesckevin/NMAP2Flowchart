@@ -1,6 +1,7 @@
-import { edgeLine, nodeTitle, type DiagramDoc, type DiagramNode } from '../doc/types';
+import { edgeArrow, edgeLine, nodeSubtitle, nodeTitle, type DiagramDoc, type DiagramNode } from '../doc/types';
 import { buildScene } from '../graph/scene';
 import { iconEmoji } from '../icons/registry';
+import { virtualPlatformOf } from '../model/device';
 import { openPorts, portSummaryOr } from '../model/types';
 import { hexToRgba, nodeRisk, type RiskPolicy } from '../doc/risk';
 import { escapeMermaid, stripControl } from './text';
@@ -13,15 +14,16 @@ function labelFor(node: DiagramNode): string {
   const title = esc(nodeTitle(node));
   if (node.kind === 'section') return `${title}`;
   if (node.host) {
-    const subtitle = node.subtitle ? `<br/>${esc(node.subtitle)}` : '';
+    const subtitle = nodeSubtitle(node) ? `<br/>${esc(nodeSubtitle(node))}` : '';
     const ports = portSummaryOr(node.host, 'discovered, no port scan');
-    return `${icon} ${title}${subtitle}<br/>${esc(ports)}`;
+    const vm = virtualPlatformOf(node.host) ? ' (VM)' : '';
+    return `${icon} ${title}${vm}${subtitle}<br/>${esc(ports)}`;
   }
   if (node.kind === 'note') {
     const body = node.notes ? `<br/>${esc(node.notes.slice(0, 120))}` : '';
     return `${icon} ${title}${body}`;
   }
-  if (node.subtitle) return `${icon} ${title}<br/>${esc(node.subtitle)}`;
+  if (nodeSubtitle(node)) return `${icon} ${title}<br/>${esc(nodeSubtitle(node))}`;
   return `${icon} ${title}`;
 }
 
@@ -54,7 +56,24 @@ export function toMermaid(doc: DiagramDoc, riskPolicy: RiskPolicy): string {
   for (const edge of doc.edges) {
     if (!visibleIds.has(edge.source) || !visibleIds.has(edge.target)) continue;
     const line = edgeLine(edge);
-    const arrow = line === 'solid' && edge.kind !== 'route' ? '-->' : '-.->';
+    const style = edgeArrow(edge);
+    const dotted = line === 'solid' && edge.kind !== 'route' ? false : true;
+    // Mermaid reads the arrow from the operator: filled, open, both ways or none.
+    const arrow = dotted
+      ? style === 'none'
+        ? '-.-'
+        : style === 'both'
+          ? '<-.->'
+          : style === 'source'
+            ? '<-.-'
+            : '-.->'
+      : style === 'none'
+        ? '---'
+        : style === 'both'
+          ? '<-->'
+          : style === 'source'
+            ? '<--'
+            : '-->';
     const label = edge.label ? `|${esc(edge.label)}|` : '';
     lines.push(`  ${mid(edge.source)} ${arrow}${label} ${mid(edge.target)}`);
   }

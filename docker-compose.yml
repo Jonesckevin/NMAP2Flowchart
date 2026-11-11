@@ -33,6 +33,13 @@ services:
       options:
         max-size: "5m"
         max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+          pids: 512
+
 
   api:
     build:
@@ -105,6 +112,12 @@ services:
       options:
         max-size: "5m"
         max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 128M
+          pids: 512
 
 volumes:
   nmap2flowchart-data:

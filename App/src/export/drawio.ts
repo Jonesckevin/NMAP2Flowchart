@@ -1,5 +1,6 @@
-import { nodeTitle, type DiagramDoc, type DiagramNode } from '../doc/types';
+import { edgeArrow, edgeSides, nodeSubtitle, nodeTitle, type DiagramDoc, type DiagramEdge, type DiagramNode, type EdgeSide } from '../doc/types';
 import { iconEmoji } from '../icons/registry';
+import { virtualPlatformOf } from '../model/device';
 import { portSummaryOr } from '../model/types';
 import { nodeRisk, type RiskPolicy } from '../doc/risk';
 import { buildScene } from '../graph/scene';
@@ -42,8 +43,8 @@ function edge(id: string, source: string, target: string, style: string, label?:
   return `        <mxCell id="${id}" value="${esc(label ?? '')}" style="${style}" edge="1" parent="1" source="${source}" target="${target}"><mxGeometry relative="1" as="geometry"/></mxCell>`;
 }
 
-const ROUTE_EDGE = 'html=1;dashed=1;strokeColor=#8ba1b8;endArrow=block;endFill=1;';
-const LINK_EDGE = 'html=1;strokeColor=#22b98c;strokeWidth=2;endArrow=block;endFill=1;';
+const ROUTE_EDGE = 'html=1;dashed=1;strokeColor=#8ba1b8;';
+const LINK_EDGE = 'html=1;strokeColor=#22b98c;strokeWidth=2;';
 
 const PATH_STYLE: Record<string, string> = {
   curve: 'edgeStyle=none;curved=1;',
@@ -58,10 +59,36 @@ const DASH_STYLE: Record<string, string> = {
   dotted: 'dashed=1;dashPattern=1.5 4;',
 };
 
+/** Which side of each card the line is pinned to, and which ends carry an arrow. */
+const SIDE_STYLE: Record<EdgeSide, { exitX: number; exitY: number; entryX: number; entryY: number }> = {
+  l: { exitX: 0, exitY: 0.5, entryX: 0, entryY: 0.5 },
+  r: { exitX: 1, exitY: 0.5, entryX: 1, entryY: 0.5 },
+  t: { exitX: 0.5, exitY: 0, entryX: 0.5, entryY: 0 },
+  b: { exitX: 0.5, exitY: 1, entryX: 0.5, entryY: 1 },
+};
+
+function drawioEnds(edge: DiagramEdge): string {
+  const sides = edgeSides(edge);
+  const arrow = edgeArrow(edge);
+  const from = SIDE_STYLE[sides.from];
+  const to = SIDE_STYLE[sides.to];
+  const ends = [
+    `exitX=${from.exitX};exitY=${from.exitY};exitDx=0;exitDy=0;`,
+    `entryX=${to.entryX};entryY=${to.entryY};entryDx=0;entryDy=0;`,
+    arrow === 'target' || arrow === 'both' ? 'endArrow=block;endFill=1;' : 'endArrow=none;',
+    arrow === 'source' || arrow === 'both' ? 'startArrow=block;startFill=1;' : 'startArrow=none;',
+  ];
+  return ends.join('');
+}
+
 function hostLabel(node: DiagramNode, riskPolicy: RiskPolicy): string {
   const icon = iconEmoji(node.icon);
-  const lines = [`<b>${esc(icon)} ${esc(nodeTitle(node))}</b>`];
-  if (node.subtitle) lines.push(`<font color="#5a6a7d">${esc(node.subtitle)}</font>`);
+  const vm = virtualPlatformOf(node.host);
+  const lines = [`<b>${esc(icon)} ${esc(nodeTitle(node))}${vm ? ' (VM)' : ''}</b>`];
+  // The subtitle the canvas shows – a stored one, else the hostname, else the MAC –
+  // so a card looks the same on the canvas and in the file it is exported to.
+  const subtitle = nodeSubtitle(node);
+  if (subtitle) lines.push(`<font color="#5a6a7d">${esc(subtitle)}</font>`);
   const risk = nodeRisk(node.host, riskPolicy);
   const ports = node.host ? portSummaryOr(node.host, 'discovered, no port scan', 5) : '';
   if (ports && ports !== 'no open ports') {
@@ -172,7 +199,7 @@ export function toDrawio(doc: DiagramDoc, riskPolicy: RiskPolicy): string {
 
   for (const { edge: link, line, path } of scene.edges) {
     const base = link.kind === 'route' ? ROUTE_EDGE : LINK_EDGE;
-    const style = `${PATH_STYLE[path]}${base}${DASH_STYLE[line] ?? ''}`;
+    const style = `${PATH_STYLE[path]}${base}${DASH_STYLE[line] ?? ''}${drawioEnds(link)}`;
     cells.push(edge(cellId(link.id), cellId(link.source), cellId(link.target), style, link.label));
   }
 

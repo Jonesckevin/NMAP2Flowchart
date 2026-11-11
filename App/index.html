@@ -7,21 +7,10 @@
     <meta name="theme-color" content="#0b1118" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NMAP2Flowchart – nmap scan to network diagram</title>
-    <script>
-      // Paint the stored theme and accent before the app boots, so a saved choice
-      // does not flash the defaults for a frame.
-      try {
-        if (localStorage.getItem('nmap2flowchart.canvasTheme') === 'light') {
-          document.documentElement.dataset.theme = 'light';
-        }
-        const accent = localStorage.getItem('nmap2flowchart.accent');
-        if (accent === 'orange' || accent === 'purple') {
-          document.documentElement.dataset.accent = accent;
-        }
-      } catch {
-        /* storage blocked: stay with the dark default */
-      }
-    </script>
+    <!-- Paint the stored theme and accent before the app boots, so a saved choice
+         does not flash the defaults for a frame. A file, not an inline script, so
+         the production CSP (docker/nginx.conf) can keep `script-src 'self'`. -->
+    <script src="/theme-boot.js"></script>
   </head>
   <body>
     <div id="root"></div>

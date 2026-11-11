@@ -1,4 +1,5 @@
 import type { NmapHost, NmapOsMatch } from '../model/types';
+import { DEVICE_KIND_ICONS, classifyHost, virtualPlatformOf } from '../model/device';
 import { OS_LOGOS } from './osLogos';
 
 const svg = (children: React.ReactNode) => (
@@ -191,6 +192,21 @@ export const ICONS: IconDef[] = [
         <rect x="5.5" y="9.5" width="13" height="5" rx="1.6" />
         <rect x="7.5" y="15" width="9" height="5" rx="1.6" />
         <path d="M7 6.5h.01M9.5 12h.01M10 17.5h.01" />
+      </>,
+    ),
+  },
+  {
+    id: 'vm',
+    label: 'Virtual machine',
+    group: 'device',
+    color: '#b07cf0',
+    emoji: '🪟',
+    // A dashed outline around a machine: the box is not hardware of its own.
+    glyph: svg(
+      <>
+        <rect x="2.5" y="3.5" width="19" height="17" rx="2.5" strokeDasharray="2.5 2.5" />
+        <rect x="6.5" y="8" width="11" height="7" rx="1.4" />
+        <path d="M9 18h6M12 15v3" />
       </>,
     ),
   },
@@ -788,7 +804,10 @@ const OS_PATTERNS: [RegExp, string][] = [
   [/truenas|freenas/i, 'truenas'],
   [/esxi|vmkernel|vmware/i, 'vmware'],
   [/android/i, 'android'],
-  [/mac os|macos|darwin|apple|ios/i, 'macos'],
+  [/thinclient|terminal/i, 'desktop'],
+  // Cisco IOS is a network OS, not Apple's iOS – check it before the mac/iOS rule.
+  [/cisco ios|ios xe|ios xr|junos/i, 'router'],
+  [/mac ?os|macos|darwin|\bapple\b|\bios\b/i, 'macos'],
   [/openbsd/i, 'openbsd'],
   [/freebsd/i, 'freebsd'],
   [/microsoft windows|windows/i, 'windows'],
@@ -877,6 +896,10 @@ function soleDesktopOs(host: NmapHost): string | undefined {
 export function detectIcon(host: NmapHost | undefined): string {
   if (!host) return 'unknown';
 
+  // 0. A NIC that only exists inside a hypervisor: the card is a guest, and that
+  //    is what the icon should say before any appliance or OS rule gets a say.
+  if (virtualPlatformOf(host)) return 'vm';
+
   // 1. What the device is, by model or vendor string: an ASUS RT-AX55 running
   //    OpenWrt is still a wireless router on the map.
   const identity = [host.hostnames.join(' '), host.vendor ?? '', host.os.map((match) => match.name).join(' ')].join(
@@ -884,6 +907,16 @@ export function detectIcon(host: NmapHost | undefined): string {
   );
   for (const [pattern, id] of APPLIANCE_PATTERNS) {
     if (pattern.test(identity)) return id;
+  }
+
+  // 1b. nmap's own classification, which the rules below cannot see: the
+  //     `<osclass type>` category, `-sV`'s devicetype/ostype, CPE identifiers and
+  //     NSE output (smb-os-discovery, snmp-sysdescr, http-title). Only a
+  //     categorical signature is allowed to decide here – a port guess is not.
+  const profile = classifyHost(host);
+  if (profile.signatureKind) {
+    const mapped = DEVICE_KIND_ICONS[profile.kind];
+    if (mapped) return mapped;
   }
 
   // 2. A fingerprinted platform naming a role – but only when the guess is not tied

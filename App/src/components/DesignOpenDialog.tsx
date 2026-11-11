@@ -7,7 +7,9 @@ import { useDialogFocus } from '../hooks/useDialogFocus';
 
 export type DesignPreview = {
   fileName: string;
-  design: DesignFile;
+  /** A design file carries its own metadata; a draw.io import is just a diagram. */
+  kind: 'design' | 'drawio';
+  design?: DesignFile;
   doc: DiagramDoc;
   repair: DesignRepair;
 };
@@ -34,8 +36,9 @@ function levelNames(policy: RiskPolicy): string {
 /** Mounted only while a design file is waiting, so the risk choice resets each time. */
 function DesignOpenPanel({ preview, hasDoc, onCancel, onOpen }: DesignOpenDialogProps) {
   const { design, doc } = preview;
+  const drawio = preview.kind === 'drawio';
   const counts = designCounts(doc);
-  const [applyRisk, setApplyRisk] = useState(Boolean(design.risk));
+  const [applyRisk, setApplyRisk] = useState(Boolean(design?.risk));
   const dialogRef = useRef<HTMLElement>(null);
   useDialogFocus(dialogRef);
 
@@ -45,7 +48,7 @@ function DesignOpenPanel({ preview, hasDoc, onCancel, onOpen }: DesignOpenDialog
   }, []);
 
   const dropped = preview.repair.nodes + preview.repair.edges + preview.repair.layers;
-  const snapshot = design.risk;
+  const snapshot = design?.risk;
   const ownRisk = doc.risk;
 
   return createPortal(
@@ -71,7 +74,7 @@ function DesignOpenPanel({ preview, hasDoc, onCancel, onOpen }: DesignOpenDialog
       >
         <div className="dialog__header">
           <div>
-            <span className="eyebrow">Design file</span>
+            <span className="eyebrow">{drawio ? 'draw.io diagram' : 'Design file'}</span>
             <h2 id="design-open-title">{preview.fileName}</h2>
           </div>
           <button type="button" className="icon-button" aria-label="Close design preview" onClick={onCancel}>
@@ -123,13 +126,20 @@ function DesignOpenPanel({ preview, hasDoc, onCancel, onOpen }: DesignOpenDialog
         </div>
 
         <dl className="import-preview__metadata">
-          <div><dt>Exported</dt><dd>{when(design.exportedAt)}</dd></div>
-          <div><dt>Source scan</dt><dd>{doc.fileName}</dd></div>
-          <div><dt>Command</dt><dd>{doc.args || 'Not recorded'}</dd></div>
+          {drawio ? (
+            <div><dt>File</dt><dd>{doc.fileName}</dd></div>
+          ) : (
+            <>
+              <div><dt>Exported</dt><dd>{when(design?.exportedAt ?? '')}</dd></div>
+              <div><dt>Source scan</dt><dd>{doc.fileName}</dd></div>
+              <div><dt>Command</dt><dd>{doc.args || 'Not recorded'}</dd></div>
+            </>
+          )}
           <div>
             <dt>Contents</dt>
             <dd>
-              {counts.hosts} host{counts.hosts === 1 ? '' : 's'} · {counts.openPorts} open port
+              {counts.hosts} host{counts.hosts === 1 ? '' : 's'} · {counts.sections} section
+              {counts.sections === 1 ? '' : 's'} · {counts.openPorts} open port
               {counts.openPorts === 1 ? '' : 's'} · {counts.links} connection{counts.links === 1 ? '' : 's'}
               {counts.hops > 0 ? ` · ${counts.hops} trace point${counts.hops === 1 ? '' : 's'}` : ''}
             </dd>
@@ -139,7 +149,7 @@ function DesignOpenPanel({ preview, hasDoc, onCancel, onOpen }: DesignOpenDialog
         <div className="dialog__actions">
           <button type="button" className="btn" onClick={onCancel}>Cancel</button>
           <button type="button" className="btn btn--accent" onClick={() => onOpen(applyRisk)}>
-            {hasDoc ? 'Replace diagram' : 'Open design'}
+            {hasDoc ? 'Replace diagram' : drawio ? 'Open diagram' : 'Open design'}
           </button>
         </div>
       </section>

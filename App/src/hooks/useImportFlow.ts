@@ -5,6 +5,7 @@ import type { NmapScan } from '../model/types';
 import type { ImportEffect, ImportMode } from '../doc/docFromScan';
 import type { DesignFile, DesignRepair } from '../doc/designFile';
 import { looksLikeJson, readDesignFile } from '../doc/designFile';
+import { looksLikeDrawio, readDrawioFile } from '../doc/drawioFile';
 import { LARGE_SCAN_BYTES, MAX_SCAN_BYTES, importScan } from '../nmap/importScan';
 import type { ImportSuccess } from '../nmap/runImport';
 
@@ -24,7 +25,10 @@ export type ImportPreview = {
 
 export type DesignPreviewRequest = {
   fileName: string;
-  design: DesignFile;
+  /** Where the whole diagram came from: a design file, or a draw.io drawing. */
+  kind: 'design' | 'drawio';
+  /** The parsed design file; absent for a draw.io import, which carries no metadata. */
+  design?: DesignFile;
   doc: DiagramDoc;
   repair: DesignRepair;
 };
@@ -36,6 +40,7 @@ export type LayerBatch = {
   ok: number;
   failed: number;
   designFile: boolean;
+  drawioFile: boolean;
 };
 
 /**
@@ -96,7 +101,21 @@ export function useImportFlow({
           notify(result.reason);
           return false;
         }
-        onDesign({ fileName, design: result.design, doc: result.doc, repair: result.repair });
+        onDesign({ kind: 'design', fileName, design: result.design, doc: result.doc, repair: result.repair });
+        return true;
+      }
+      if (looksLikeDrawio(text)) {
+        const result = await readDrawioFile(text, fileName);
+        if (!result.ok) {
+          notify(result.reason);
+          return false;
+        }
+        onDesign({
+          kind: 'drawio',
+          fileName,
+          doc: result.doc,
+          repair: { layers: 0, nodes: result.ignored, edges: 0 },
+        });
         return true;
       }
       const result = await importScan({ text, fileName, mode, doc });
@@ -128,6 +147,7 @@ export function useImportFlow({
           let added = 0;
           let failed = 0;
           let designFile = false;
+          let drawioFile = false;
           for (const file of list) {
             if (aborted()) break;
             if (tooLarge(file)) {
@@ -138,6 +158,8 @@ export function useImportFlow({
               const text = await file.text();
               designFile = looksLikeJson(text);
               if (designFile) break;
+              drawioFile = looksLikeDrawio(text);
+              if (drawioFile) break;
               const result = await importScan({ text, fileName: file.name, mode: 'layer', doc: next }, { signal });
               if (!result.ok) {
                 failed += 1;
@@ -158,6 +180,7 @@ export function useImportFlow({
             ok: list.length - failed,
             failed,
             designFile,
+            drawioFile,
           });
           return;
         }
@@ -168,7 +191,7 @@ export function useImportFlow({
           notify(`Importing ${file.name} only – choose “Add scan as new layer” for a batch`);
         }
         const text = await file.text();
-        if (looksLikeJson(text)) {
+        if (looksLikeJson(text) || looksLikeDrawio(text)) {
           await importText(text, file.name, mode);
           return;
         }

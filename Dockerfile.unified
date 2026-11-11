@@ -1,0 +1,72 @@
+# One container, everything in it: the SPA is embedded in the bundle and the
+# accounts API runs in the same Node process, so there is no reverse proxy and no
+# second service to wire up. Published to Docker Hub by
+# .github/workflows/docker-publish.yml; the two-container stack (Dockerfile +
+# Dockerfile.api) stays for compose users.
+ARG NODE_VERSION=24-alpine
+
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION} AS build
+
+WORKDIR /app
+
+# Build as the image's own unprivileged user: nothing in the toolchain needs root.
+RUN chown node:node /app
+USER node
+
+COPY --chown=node:node App/package.json App/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+
+COPY --chown=node:node App/tsconfig.json App/tsconfig.app.json App/tsconfig.node.json App/vite.config.ts App/index.html ./
+COPY --chown=node:node App/public ./public
+COPY --chown=node:node App/src ./src
+COPY --chown=node:node App/scripts ./scripts
+COPY --chown=node:node App/server ./server
+
+# The script builds the SPA, embeds it in a single .cjs bundle together with the
+# API, then boots that bundle and checks it over HTTP. The bundle is plain JS, so
+# one build serves every platform the workflow publishes.
+RUN node scripts/build-standalone.mjs --bundle-only --out /app/bundle
+
+FROM node:${NODE_VERSION} AS runtime
+
+LABEL org.opencontainers.image.title="NMAP2Flowchart" \
+      org.opencontainers.image.description="Turn nmap scans into editable network diagrams – editor and accounts API in one container" \
+      org.opencontainers.image.licenses="MIT"
+
+# Patch the Alpine packages the node tag trails and drop the package managers:
+# the bundle has no dependencies, so npm/npx/corepack/yarn are only attack
+# surface – and every CVE they bundle with them.
+RUN apk upgrade --no-cache \
+    && rm -rf /usr/local/lib/node_modules/npm \
+              /usr/local/lib/node_modules/corepack \
+              /opt/yarn-v1.22.22 \
+              /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+              /usr/local/bin/yarn /usr/local/bin/yarnpkg
+
+WORKDIR /app
+
+COPY --from=build --chown=node:node /app/bundle/app.cjs ./app.cjs
+COPY --chown=node:node risk-policy.example.json ./risk-policy.example.json
+
+RUN mkdir -p /data && chown node:node /data /app
+
+USER node
+
+# The defaults this image is published with: accounts on, the shared room off.
+# Set NMAP_SHARED=true to serve one diagram to everyone who connects instead.
+ENV NODE_ENV=production \
+    NMAP_AUTH_ENABLED=true \
+    NMAP_SHARED=false \
+    NMAP_API_HOST=0.0.0.0 \
+    NMAP_API_PORT=8080 \
+    NMAP_DATA_DIR=/data
+
+VOLUME ["/data"]
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1
+
+# --no-open: there is no browser to launch in a container.
+CMD ["node", "app.cjs", "--no-open"]

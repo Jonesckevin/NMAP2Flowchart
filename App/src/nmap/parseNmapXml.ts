@@ -7,8 +7,10 @@ const ARRAY_PATHS = new Set([
   'nmaprun.host.hostnames.hostname',
   'nmaprun.host.ports.port',
   'nmaprun.host.ports.port.script',
+  'nmaprun.host.ports.port.service.cpe',
   'nmaprun.host.hostscript.script',
   'nmaprun.host.os.osmatch',
+  'nmaprun.host.os.osmatch.osclass',
   'nmaprun.host.trace.hop',
 ]);
 
@@ -63,6 +65,9 @@ function toScripts(value: unknown): NmapScript[] {
 function toPort(raw: Raw): NmapPort {
   const state = child(raw, 'state');
   const service = child(raw, 'service');
+  const cpe = asArray<unknown>(service?.cpe)
+    .map((entry) => (typeof entry === 'string' ? text(entry) : attr(entry, 'cpe') ?? text(entry)))
+    .filter((entry): entry is string => Boolean(entry));
   return {
     port: Number(attr(raw, 'portid') ?? 0),
     protocol: attr(raw, 'protocol') ?? 'tcp',
@@ -71,7 +76,27 @@ function toPort(raw: Raw): NmapPort {
     product: attr(service, 'product'),
     version: attr(service, 'version'),
     extrainfo: attr(service, 'extrainfo'),
+    devicetype: attr(service, 'devicetype'),
+    ostype: attr(service, 'ostype'),
+    cpe: cpe.length > 0 ? cpe : undefined,
     scripts: toScripts(raw.script),
+  };
+}
+
+function toOsMatch(raw: Raw): NmapOsMatch {
+  const classes = asArray<Raw>(raw.osclass)
+    .map((entry) => ({
+      type: attr(entry, 'type') ?? '',
+      vendor: attr(entry, 'vendor'),
+      osfamily: attr(entry, 'osfamily'),
+      osgen: attr(entry, 'osgen'),
+      accuracy: Number(attr(entry, 'accuracy') ?? 0),
+    }))
+    .filter((entry) => entry.type.length > 0);
+  return {
+    name: attr(raw, 'name') ?? 'unknown',
+    accuracy: Number(attr(raw, 'accuracy') ?? 0),
+    ...(classes.length > 0 ? { classes } : {}),
   };
 }
 
@@ -105,10 +130,7 @@ function toHost(raw: Raw, index: number): NmapHost | null {
     .map(toPort)
     .sort((a, b) => a.port - b.port);
 
-  const os: NmapOsMatch[] = asArray<Raw>(child(raw, 'os')?.osmatch).map((match) => ({
-    name: attr(match, 'name') ?? 'unknown',
-    accuracy: Number(attr(match, 'accuracy') ?? 0),
-  }));
+  const os: NmapOsMatch[] = asArray<Raw>(child(raw, 'os')?.osmatch).map(toOsMatch);
 
   const hops = toTrace(raw).map((hop) => hop.ip);
 
@@ -193,18 +215,12 @@ export function parseNmapXml(xml: string, fileName = 'scan.xml'): NmapScan {
 
   const trace = collectTrace(asArray<Raw>(run.host));
 
-  if (hosts.length === 0) {
-    const args = attr(run, 'args') ?? '';
-    const discoveryScan = /(^|\s)-sn(\s|$)/.test(args);
-    throw new Error(
-      discoveryScan
-        ? 'The scan reported no live hosts. A ping scan only lists hosts that answer – try sudo for ARP discovery on a local subnet, or scan again with -Pn.'
-        : 'The scan contains no hosts. Try nmap with -Pn to include hosts that block ping.',
-    );
-  }
-
+  // A scan that found nothing is still a scan: nmap writes it, exits 0, and the
+  // runstats line says why. The import flow decides what to do with it – this
+  // reader only reports it.
   const start = attr(run, 'start');
-  const elapsed = attr(child(child(run, 'runstats'), 'finished'), 'elapsed');
+  const finished = child(child(run, 'runstats'), 'finished');
+  const elapsed = attr(finished, 'elapsed');
 
   return {
     fileName,
@@ -212,6 +228,7 @@ export function parseNmapXml(xml: string, fileName = 'scan.xml'): NmapScan {
     version: attr(run, 'version'),
     startedAt: start ? new Date(Number(start) * 1000).toISOString() : undefined,
     elapsedSeconds: elapsed ? Number(elapsed) : undefined,
+    summary: attr(finished, 'summary'),
     hosts,
     trace: trace.length > 0 ? trace : undefined,
   };
