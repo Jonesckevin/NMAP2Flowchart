@@ -72,6 +72,25 @@ test('exports follow the resolved risk policy', () => {
   assert.equal(toMermaid(doc, { version: 1, levels: [] }).includes('risk_critical'), false);
 });
 
+test('the dark theme recolours the picture without moving it', () => {
+  const dark = toSvg(doc, policy, 'dark');
+  assert.equal(dark.width, svg.width, 'the palette must not change the geometry');
+  assert.equal(dark.height, svg.height);
+  assert.ok(dark.svg.includes('fill="#0b1118"'), 'the page is dark');
+  assert.equal(dark.svg.includes('fill="#ffffff"'), false, 'no white page or card is left behind');
+  assert.ok(dark.svg.includes('10.0.0.40'), 'the same cards are drawn');
+
+  // Risk colours come from the policy, so a palette may not touch them.
+  for (const colour of ['#e5484d', '#f08c2e', '#e3c53d', '#a855f7', '#3b82f6']) {
+    assert.equal(
+      dark.svg.includes(colour),
+      svg.svg.includes(colour),
+      `${colour} belongs to the risk policy, not to the theme`,
+    );
+  }
+  assert.equal(toSvg(doc, policy, 'light').svg, svg.svg, 'light stays the default');
+});
+
 test('a hidden layer and a focused layer change what the picture holds', () => {
   const hidden = { ...doc, layers: doc.layers.map((layer) => ({ ...layer, visible: false })) };
   const empty = toSvg(hidden, policy);

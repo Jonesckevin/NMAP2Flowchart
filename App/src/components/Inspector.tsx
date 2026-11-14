@@ -620,11 +620,18 @@ function NodeDetails({
                 values={host.addresses ?? [host.ip, host.ipv6].filter((value): value is string => Boolean(value))}
                 onChange={(values) => {
                   const cleaned = values.map((value) => value.trim());
-                  const primary = cleaned.find(Boolean);
+                  const filled = cleaned.filter(Boolean);
+                  const primary = filled[0] ?? '';
+                  // One filled address is the host's `ip`; anything else – several
+                  // rows, or a row the user just opened and has not typed into yet –
+                  // is kept as a list so the text box stays on screen while it is empty.
+                  const asList = cleaned.length > 1 || filled.length === 0;
                   patchHost({
-                    addresses: cleaned.length > 1 ? cleaned : undefined,
-                    ip: primary ?? '',
-                    ipv6: cleaned.find((value) => value.includes(':')) || undefined,
+                    addresses: asList ? cleaned : undefined,
+                    ip: primary,
+                    // `ipv6` is the extra address beside an IPv4 `ip`, as the parser
+                    // stores it; a lone IPv6 address is just the `ip`.
+                    ipv6: primary.includes(':') ? undefined : filled.find((value) => value.includes(':')),
                   });
                 }}
                 placeholder="10.0.0.10"

@@ -20,7 +20,10 @@ export type SvgExport = { svg: string; width: number; height: number };
 const MARGIN = 36;
 const MAX_BADGES = 2;
 
-const INK = {
+/** The printed palette, and the one a dark surface needs. */
+export type SvgTheme = 'light' | 'dark';
+
+const LIGHT = {
   page: '#ffffff',
   sectionFill: '#f6f8fb',
   sectionStroke: '#b6c1d1',
@@ -33,17 +36,57 @@ const INK = {
   meta: '#6b7a8f',
   badgeFill: '#eef2f7',
   badgeText: '#334155',
+  chipStroke: '#dde5ee',
   hopFill: '#eef2f7',
   hopStroke: '#b6c1d1',
   hopText: '#334155',
   originFill: '#1f2937',
   originStroke: '#0f172a',
   originText: '#f8fafc',
+  originLabel: '#7fe6c4',
+  originSub: '#9fb0c4',
   noteFill: '#fffbe6',
   noteStroke: '#e6d9a2',
   noteText: '#3b3a2f',
   route: '#8ba1b8',
   link: '#22b98c',
+};
+
+type Palette = typeof LIGHT;
+
+/**
+ * The dark set mirrors the app's own dark canvas, so a diagram looks the same in a
+ * dark editor as it does there. Every colour a shape needs lives in both sets: the
+ * icon tiles mix toward `page`, which is what keeps a hue built for white cards
+ * from glowing on a dark one.
+ */
+const DARK: Palette = {
+  page: '#0b1118',
+  sectionFill: '#141c26',
+  sectionStroke: '#2b3746',
+  sectionText: '#c7d4e3',
+  sectionMuted: '#8698ad',
+  card: '#161f2a',
+  cardStroke: '#33404f',
+  title: '#e9f0f7',
+  sub: '#a9b8c9',
+  meta: '#8b9cb0',
+  badgeFill: '#212c3a',
+  badgeText: '#c7d4e3',
+  chipStroke: '#33404f',
+  hopFill: '#1a2432',
+  hopStroke: '#33404f',
+  hopText: '#c7d4e3',
+  originFill: '#243040',
+  originStroke: '#3c4d63',
+  originText: '#f2f7fc',
+  originLabel: '#7fe6c4',
+  originSub: '#a2b6cc',
+  noteFill: '#2a2618',
+  noteStroke: '#4b4229',
+  noteText: '#eee5c7',
+  route: '#5d7691',
+  link: '#2fd6a5',
 };
 
 const SANS = "'Inter', 'Segoe UI', Helvetica, Arial, sans-serif";
@@ -91,16 +134,18 @@ function edgeDraw(path: EdgePath, x1: number, y1: number, x2: number, y2: number
   ].join(' ');
 }
 
-function tint(hex: string, amount: number): string {
+function tint(hex: string, amount: number, target = '#ffffff'): string {
   const value = hex.replace('#', '');
   const full = value.length === 3 ? value.replace(/./g, (c) => c + c) : value.padEnd(6, '0');
-  const mix = (channel: string) => {
-    const n = Number.parseInt(channel, 16);
-    return Math.round(n + (255 - n) * amount)
+  const base = target.replace('#', '').padEnd(6, '0');
+  const mix = (at: number) => {
+    const n = Number.parseInt(full.slice(at, at + 2), 16);
+    const t = Number.parseInt(base.slice(at, at + 2), 16);
+    return Math.round(n + (t - n) * amount)
       .toString(16)
       .padStart(2, '0');
   };
-  return `#${mix(full.slice(0, 2))}${mix(full.slice(2, 4))}${mix(full.slice(4, 6))}`;
+  return `#${mix(0)}${mix(2)}${mix(4)}`;
 }
 
 function textWidth(text: string, size: number, mono: boolean): number {
@@ -170,7 +215,7 @@ function rect(
   return `<rect x="${round(x)}" y="${round(y)}" width="${round(w)}" height="${round(h)}" ${paint}/>`;
 }
 
-function iconMarkup(id: string | undefined, x: number, y: number, size: number): string {
+function iconMarkup(id: string | undefined, x: number, y: number, size: number, ink: Palette, dark: boolean): string {
   const def = iconById(id);
   if (def.logo) {
     const scale = size / 24;
@@ -178,13 +223,18 @@ function iconMarkup(id: string | undefined, x: number, y: number, size: number):
   }
   const mark = def.mark ?? def.label.slice(0, 2).toUpperCase();
   return [
-    rect(x, y, size, size, { fill: tint(def.color, 0.86), stroke: tint(def.color, 0.55), rx: size * 0.24 }),
+    rect(x, y, size, size, {
+      fill: tint(def.color, 0.86, ink.page),
+      stroke: tint(def.color, 0.55, ink.page),
+      rx: size * 0.24,
+    }),
     text({
       x: x + size / 2,
       y: y + size * 0.68,
       text: mark,
       size: size * 0.44,
-      color: tint(def.color, 0.35),
+      // On a dark tile the initials have to lift toward white, not sink toward it.
+      color: dark ? tint(def.color, 0.5) : tint(def.color, 0.35),
       mono: true,
       bold: true,
       anchor: 'middle',
@@ -192,8 +242,15 @@ function iconMarkup(id: string | undefined, x: number, y: number, size: number):
   ].join('');
 }
 
-export function toSvg(doc: DiagramDoc, riskPolicy: RiskPolicy): SvgExport {
+/**
+ * The picture. `theme` picks the palette: `light` is the printed export, `dark` the
+ * same drawing on a dark page, which is what the VS Code preview asks for.
+ */
+export function toSvg(doc: DiagramDoc, riskPolicy: RiskPolicy, theme: SvgTheme = 'light'): SvgExport {
   const scene = buildScene(doc, riskPolicy);
+  const ink = theme === 'dark' ? DARK : LIGHT;
+  const dark = theme === 'dark';
+  const icon = (id: string | undefined, x: number, y: number, size: number) => iconMarkup(id, x, y, size, ink, dark);
   const width = Math.max(320, scene.bounds.x + scene.bounds.w + MARGIN * 2);
   const height = Math.max(200, scene.bounds.y + scene.bounds.h + MARGIN * 2);
 
@@ -202,16 +259,16 @@ export function toSvg(doc: DiagramDoc, riskPolicy: RiskPolicy): SvgExport {
   for (const section of scene.sections) {
     const b = section.box;
     const count = section.children.length;
-    const accent = section.node.accent ?? INK.sectionStroke;
-    body.push(rect(b.x, b.y, b.w, b.h, { fill: INK.sectionFill, stroke: accent, sw: 1.4, rx: 16, dash: '7 6' }));
-    body.push(iconMarkup(section.node.icon ?? 'server', b.x + 14, b.y + 13, 16));
+    const accent = section.node.accent ?? ink.sectionStroke;
+    body.push(rect(b.x, b.y, b.w, b.h, { fill: ink.sectionFill, stroke: accent, sw: 1.4, rx: 16, dash: '7 6' }));
+    body.push(icon(section.node.icon ?? 'server', b.x + 14, b.y + 13, 16));
     body.push(
       text({
         x: b.x + 38,
         y: b.y + 27,
         text: fit(nodeTitle(section.node), b.w - 140, 12, false),
         size: 12,
-        color: INK.sectionText,
+        color: ink.sectionText,
         mono: true,
         bold: true,
       }),
@@ -222,7 +279,7 @@ export function toSvg(doc: DiagramDoc, riskPolicy: RiskPolicy): SvgExport {
         y: b.y + 27,
         text: `${count} nodes`,
         size: 9.5,
-        color: INK.sectionMuted,
+        color: ink.sectionMuted,
       }),
     );
   }
@@ -240,7 +297,7 @@ export function toSvg(doc: DiagramDoc, riskPolicy: RiskPolicy): SvgExport {
     const vertical = sides.from === 't' || sides.from === 'b';
     const bend = Math.max(40, (vertical ? Math.abs(y2 - y1) : Math.abs(x2 - x1)) * 0.45);
     const dash = line === 'solid' ? '' : line === 'dashed' ? '9 5' : '1.8 4.6';
-    const stroke = edge.kind === 'route' ? INK.route : INK.link;
+    const stroke = edge.kind === 'route' ? ink.route : ink.link;
     const sw = edge.kind === 'route' ? 1.4 : 2;
     body.push(
       `<path d="${edgeDraw(vertical ? (path === 'curve' ? 'straight' : path) : path, x1, y1, x2, y2, bend)}" fill="none" stroke="${stroke}" stroke-width="${sw}"${
@@ -257,7 +314,7 @@ export function toSvg(doc: DiagramDoc, riskPolicy: RiskPolicy): SvgExport {
           y: (y1 + y2) / 2 - 6,
           text: edge.label,
           size: 9.5,
-          color: INK.meta,
+          color: ink.meta,
           anchor: 'middle',
         }),
       );
@@ -272,9 +329,9 @@ export function toSvg(doc: DiagramDoc, riskPolicy: RiskPolicy): SvgExport {
       const host = node.host;
       const open = host ? openPorts(host) : [];
       const risk = item.risk;
-      const stroke = risk?.color ?? node.accent ?? INK.cardStroke;
+      const stroke = risk?.color ?? node.accent ?? ink.cardStroke;
       body.push(
-        rect(b.x, b.y, b.w, b.h, { fill: INK.card, stroke, sw: risk ? 1.6 : 1, rx: 11 }),
+        rect(b.x, b.y, b.w, b.h, { fill: ink.card, stroke, sw: risk ? 1.6 : 1, rx: 11 }),
       );
       // A risk level owns the stroke, so keep the hand-picked accent visible as a stripe.
       if (risk && node.accent) {
@@ -283,14 +340,14 @@ export function toSvg(doc: DiagramDoc, riskPolicy: RiskPolicy): SvgExport {
           rect(b.x + 3, b.y + inset, 4, b.h - inset * 2, { fill: node.accent, rx: 3 }),
         );
       }
-      body.push(iconMarkup(node.icon, b.x + 11, b.y + 10, 20));
+      body.push(icon(node.icon, b.x + 11, b.y + 10, 20));
 
       const title = fit(nodeTitle(node), b.w - 70, 11.5, true);
-      body.push(text({ x: b.x + 39, y: b.y + 23, text: title, size: 11.5, color: INK.title, mono: true, bold: true }));
+      body.push(text({ x: b.x + 39, y: b.y + 23, text: title, size: 11.5, color: ink.title, mono: true, bold: true }));
       const subtitle = node.subtitle ?? host?.hostnames.find((name) => name.trim()) ?? host?.mac ?? '';
       if (subtitle) {
         body.push(
-          text({ x: b.x + 39, y: b.y + 34, text: fit(subtitle, b.w - 60, 9, false), size: 9, color: INK.sub }),
+          text({ x: b.x + 39, y: b.y + 34, text: fit(subtitle, b.w - 60, 9, false), size: 9, color: ink.sub }),
         );
       }
       if (risk) {
@@ -302,7 +359,7 @@ export function toSvg(doc: DiagramDoc, riskPolicy: RiskPolicy): SvgExport {
             host.os[0] ? ` · ${host.os[0].name.split(' ').slice(0, 2).join(' ')}` : ''
           }`
         : (node.notes?.split('\n')[0] ?? 'custom node');
-      body.push(text({ x: b.x + 11, y: b.y + 51, text: fit(meta, b.w - 22, 9.5, false), size: 9.5, color: INK.meta }));
+      body.push(text({ x: b.x + 11, y: b.y + 51, text: fit(meta, b.w - 22, 9.5, false), size: 9.5, color: ink.meta }));
 
       const shownPorts = open.slice(0, open.length > MAX_BADGES ? MAX_BADGES - 1 : MAX_BADGES);
       const overflow = open.length - shownPorts.length;
@@ -314,8 +371,8 @@ export function toSvg(doc: DiagramDoc, riskPolicy: RiskPolicy): SvgExport {
         if (cursor + w > b.x + b.w - 10) return;
         body.push(
           rect(cursor, chipY, w, 17, {
-            fill: color ? hexToRgba(color, 0.16) : INK.badgeFill,
-            stroke: color ? hexToRgba(color, 0.45) : '#dde5ee',
+            fill: color ? hexToRgba(color, 0.16) : ink.badgeFill,
+            stroke: color ? hexToRgba(color, 0.45) : ink.chipStroke,
             rx: 5,
           }),
         );
@@ -325,7 +382,7 @@ export function toSvg(doc: DiagramDoc, riskPolicy: RiskPolicy): SvgExport {
             y: chipY + 12,
             text: label,
             size: 8.5,
-            color: color ?? INK.badgeText,
+            color: color ?? ink.badgeText,
             mono: true,
           }),
         );
@@ -340,40 +397,40 @@ export function toSvg(doc: DiagramDoc, riskPolicy: RiskPolicy): SvgExport {
     }
 
     if (node.kind === 'note') {
-      body.push(rect(b.x, b.y, b.w, b.h, { fill: INK.noteFill, stroke: node.accent ?? INK.noteStroke, sw: 1, rx: 10 }));
-      body.push(iconMarkup(node.icon ?? 'iot', b.x + 10, b.y + 10, 14));
+      body.push(rect(b.x, b.y, b.w, b.h, { fill: ink.noteFill, stroke: node.accent ?? ink.noteStroke, sw: 1, rx: 10 }));
+      body.push(icon(node.icon ?? 'iot', b.x + 10, b.y + 10, 14));
       body.push(
-        text({ x: b.x + 30, y: b.y + 21, text: fit(nodeTitle(node), b.w - 44, 10.5, false), size: 10.5, color: INK.noteText, bold: true }),
+        text({ x: b.x + 30, y: b.y + 21, text: fit(nodeTitle(node), b.w - 44, 10.5, false), size: 10.5, color: ink.noteText, bold: true }),
       );
       const lines = wrap(node.notes ?? '', b.w - 22, 9.5, Math.max(1, Math.floor((b.h - 40) / 13)));
       lines.forEach((line, index) => {
-        body.push(text({ x: b.x + 11, y: b.y + 40 + index * 13, text: line, size: 9.5, color: INK.noteText }));
+        body.push(text({ x: b.x + 11, y: b.y + 40 + index * 13, text: line, size: 9.5, color: ink.noteText }));
       });
       continue;
     }
 
     if (node.kind === 'hop') {
-      body.push(rect(b.x, b.y, b.w, b.h, { fill: INK.hopFill, stroke: node.accent ?? INK.hopStroke, sw: 1, rx: HOP_H / 2 }));
-      body.push(iconMarkup(node.icon ?? 'router', b.x + 12, b.y + (HOP_H - 15) / 2, 15));
-      body.push(text({ x: b.x + 33, y: b.y + 20, text: `hop ${node.depth ?? 1}`, size: 8, color: INK.sectionMuted }));
+      body.push(rect(b.x, b.y, b.w, b.h, { fill: ink.hopFill, stroke: node.accent ?? ink.hopStroke, sw: 1, rx: HOP_H / 2 }));
+      body.push(icon(node.icon ?? 'router', b.x + 12, b.y + (HOP_H - 15) / 2, 15));
+      body.push(text({ x: b.x + 33, y: b.y + 20, text: `hop ${node.depth ?? 1}`, size: 8, color: ink.sectionMuted }));
       body.push(
-        text({ x: b.x + 33, y: b.y + 33, text: fit(nodeTitle(node), b.w - 44, 10, true), size: 10, color: INK.hopText, mono: true }),
+        text({ x: b.x + 33, y: b.y + 33, text: fit(nodeTitle(node), b.w - 44, 10, true), size: 10, color: ink.hopText, mono: true }),
       );
       if (node.subtitle) {
-        body.push(text({ x: b.x + 33, y: b.y + 44, text: fit(node.subtitle, b.w - 44, 7.5, false), size: 7.5, color: INK.sectionMuted }));
+        body.push(text({ x: b.x + 33, y: b.y + 44, text: fit(node.subtitle, b.w - 44, 7.5, false), size: 7.5, color: ink.sectionMuted }));
       }
       continue;
     }
 
-    body.push(rect(b.x, b.y, b.w, b.h, { fill: INK.originFill, stroke: node.accent ?? INK.originStroke, sw: 1.2, rx: 12 }));
-    body.push(iconMarkup(node.icon ?? 'cloud', b.x + 12, b.y + 12, 16));
+    body.push(rect(b.x, b.y, b.w, b.h, { fill: ink.originFill, stroke: node.accent ?? ink.originStroke, sw: 1.2, rx: 12 }));
+    body.push(icon(node.icon ?? 'cloud', b.x + 12, b.y + 12, 16));
     body.push(
       text({
         x: b.x + 34,
         y: b.y + 22,
         text: nodeTitle(node).toUpperCase(),
         size: 8.5,
-        color: '#7fe6c4',
+        color: ink.originLabel,
         bold: true,
       }),
     );
@@ -383,11 +440,11 @@ export function toSvg(doc: DiagramDoc, riskPolicy: RiskPolicy): SvgExport {
         y: b.y + 40,
         text: fit(node.address ?? node.notes ?? 'imported scan', b.w - 24, 9.5, true),
         size: 9.5,
-        color: INK.originText,
+        color: ink.originText,
         mono: true,
       }),
     );
-    body.push(text({ x: b.x + 12, y: b.y + 56, text: node.subtitle ?? '', size: 9, color: '#9fb0c4' }));
+    body.push(text({ x: b.x + 12, y: b.y + 56, text: node.subtitle ?? '', size: 9, color: ink.originSub }));
   }
 
   const svg = [
@@ -395,7 +452,7 @@ export function toSvg(doc: DiagramDoc, riskPolicy: RiskPolicy): SvgExport {
       height,
     )}" viewBox="0 0 ${round(width)} ${round(height)}">`,
     `<title>${esc(doc.fileName)}</title>`,
-    rect(0, 0, width, height, { fill: INK.page }),
+    rect(0, 0, width, height, { fill: ink.page }),
     `<g transform="translate(${MARGIN} ${MARGIN})">`,
     ...body,
     '</g>',

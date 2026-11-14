@@ -18,6 +18,8 @@ import {
 import { HostNode, HopNode, NoteNode, OriginNode, SectionNode } from './components/nodes';
 import { alignmentGuides, type Guide } from './graph/guides';import { Inspector } from './components/Inspector';
 import { LayerPanel } from './components/LayerPanel';
+import { CodePanel, type ApplyCodeOutcome } from './components/CodePanel';
+import { applyLayerCode } from './code/codeToDoc';
 import { SelectionToolbar } from './components/SelectionToolbar';
 import { ContextMenu, type MenuEntry } from './components/ContextMenu';
 import { CommandPalette, type Command } from './components/CommandPalette';
@@ -264,6 +266,7 @@ function Canvas() {
   const [layersOpen, setLayersOpen] = useState(
     () => !window.matchMedia('(max-width: 760px)').matches,
   );
+  const [codePanelOpen, setCodePanelOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [toastUndo, setToastUndo] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -430,6 +433,35 @@ function Canvas() {
       fitSoon();
     },
     [history, notify, fitSoon],
+  );
+
+  /** The code panel's Apply: one committed step, so undo puts the layer back. */
+  const applyCode = useCallback(
+    (code: string): ApplyCodeOutcome => {
+      if (!doc) return { ok: false, error: 'There is no diagram open.' };
+      const applied: { failure: { error: string; line: number } | null; added: number } = {
+        failure: null,
+        added: 0,
+      };
+      // Functional commit: two clicks in a row cannot apply the second block to a
+      // stale document, and a parse failure leaves the history untouched.
+      history.commit((current) => {
+        const result = applyLayerCode(current, effectiveLayerId, code);
+        if (!result.ok) {
+          applied.failure = { error: result.error, line: result.line };
+          return current;
+        }
+        applied.added = result.added;
+        return result.doc;
+      });
+      if (applied.failure) return { ok: false, ...applied.failure };
+      const name = doc.layers.find((layer) => layer.id === effectiveLayerId)?.name ?? 'layer';
+      setSelection({ nodes: [], edges: [] });
+      notify(`“${name}” rebuilt from code · ${applied.added} nodes`);
+      fitSoon();
+      return { ok: true };
+    },
+    [doc, effectiveLayerId, history, notify, fitSoon],
   );
 
   // The Add dock is always on screen, so the minimap steps aside once the canvas
@@ -915,6 +947,14 @@ function Canvas() {
         disabled: !doc,
       },
       {
+        id: 'code',
+        group: 'View',
+        label: codePanelOpen ? 'Hide the code panel' : 'Edit this layer as code',
+        hint: 'a Mermaid-style text view of the selected layer',
+        run: () => setCodePanelOpen((open) => !open),
+        disabled: !doc || shared.readOnly,
+      },
+      {
         id: 'undo',
         group: 'Edit',
         label: 'Undo',
@@ -977,7 +1017,7 @@ function Canvas() {
     }
 
     return list;
-  }, [accent, cycleAccent, doc, exportDesign, fitView, handleAddNode, history, legendOpen, openFileHub, shared.readOnly, snapSize, startConnect]);
+  }, [accent, codePanelOpen, cycleAccent, doc, exportDesign, fitView, handleAddNode, history, legendOpen, openFileHub, shared.readOnly, snapSize, startConnect]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -1974,6 +2014,18 @@ function Canvas() {
           >
             ☰
           </button>
+          <button
+            type="button"
+            className={`btn btn--ghost btn--icon${codePanelOpen ? ' is-on' : ''}`}
+            title="Toggle code panel"
+            data-tooltip={codePanelOpen ? 'Hide code' : 'Edit this layer as code'}
+            aria-label={codePanelOpen ? 'Hide code panel' : 'Show code panel'}
+            aria-expanded={codePanelOpen}
+            disabled={!doc || shared.readOnly}
+            onClick={() => setCodePanelOpen((open) => !open)}
+          >
+            {'</>'}
+          </button>
 
           <div className="menu-wrap">
             <button
@@ -2712,6 +2764,15 @@ function Canvas() {
               tabIndex={-1}
               onClick={() => setSelection({ nodes: [], edges: [] })}
             />
+            {codePanelOpen && (
+              <CodePanel
+                doc={doc}
+                layer={doc.layers.find((layer) => layer.id === effectiveLayerId)}
+                layerId={effectiveLayerId}
+                onApply={applyCode}
+                onClose={() => setCodePanelOpen(false)}
+              />
+            )}
             <Inspector
               doc={doc}
               riskPolicy={riskPolicy}

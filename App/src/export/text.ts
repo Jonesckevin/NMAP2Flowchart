@@ -33,9 +33,20 @@ export const escapeMermaid = (value: string) =>
     .replace(/\s+/g, ' ')
     .trim();
 
+/**
+ * A value inside a `"…"` in the code panel's own DSL. That reader understands
+ * exactly two escapes, so a backslash, a quote and a newline are the whole job;
+ * everything else may appear literally.
+ */
+export const escapeDslString = (value: string) =>
+  stripControl(value)
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\r\n?|\n/g, '\\n')
+    .replace(/\t/g, '\\t');
+
 /** Text meant for a spreadsheet: quoted when needed, never evaluated as a formula. */
 const FORMULA_START = /^[=+\-@\t\r]/;
-
 export function csvCell(value: string | number) {
   let text = String(value ?? '');
   // Excel and Sheets run a cell that starts with =, +, - or @. A scan can put any

@@ -160,6 +160,119 @@ async function main() {
     assert(nodes > 5, `expected a populated canvas, saw ${nodes} nodes`);
   });
 
+  await step('the code panel rebuilds a layer from text', async () => {
+    await page.getByRole('button', { name: 'Show code panel' }).click();
+    const area = page.locator('.code-panel__area');
+    await area.waitFor({ timeout: 5000 });
+    const text = await area.inputValue();
+    assert(/^flowchart /m.test(text), 'the panel shows the layer as code');
+    assert(/subgraph /.test(text), 'sections are written as subgraphs');
+
+    // The highlighted copy sits under the real textarea, so it has to be identical.
+    const overlay = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('.code-panel__highlight .code-line'))
+        .map((line) => (line.textContent ?? '').replace(/\u200b/g, ''))
+        .join('\n'),
+    );
+    assert(overlay === text, 'the syntax layer matches the text character for character');
+
+    // The gutter numbers every logical line.
+    const numbered = await page.locator('.code-panel__highlight .code-line[data-line]').count();
+    assert(numbered === text.split('\n').length, `the gutter numbers every line (${numbered})`);
+
+    // Expand wraps attributes onto indented continuation lines; Compact puts them back.
+    const compactText = await area.inputValue();
+    await page.locator('.code-panel__toolbar button[aria-label="Expand the code"]').click();
+    await page.waitForTimeout(350);
+    const expandedText = await area.inputValue();
+    assert(
+      expandedText.split('\n').length > compactText.split('\n').length,
+      'Expand adds continuation lines',
+    );
+    assert(/^ +\w+: /m.test(expandedText), 'continuations are indented under their statement');
+    assert((await page.locator('.code-panel__error').count()) === 0, 'the wrapped code still parses');
+    await page.locator('.code-panel__toolbar button[aria-label="Compact the code"]').click();
+    await page.waitForTimeout(350);
+    assert(
+      (await area.inputValue()).trim() === compactText.trim(),
+      'Compact restores one line per statement',
+    );
+
+    // Typing is undoable on its own, without touching the document history.
+    await area.fill('a["A"]\nb["B"]');
+    await page.waitForTimeout(150);
+    await area.press('Control+z');
+    await page.waitForTimeout(250);
+    assert(
+      (await area.inputValue()).includes('flowchart'),
+      'Ctrl+Z restores the text that was there before the edit',
+    );
+    await area.press('Control+Shift+z');
+    await page.waitForTimeout(250);
+    assert(
+      (await area.inputValue()).trim() === 'a["A"]\nb["B"]',
+      'Ctrl+Shift+Z redoes it',
+    );
+
+    // Back to the canvas text for the checks that follow.
+    await page.getByRole('button', { name: 'Revert' }).click();
+    await page.waitForTimeout(300);
+    assert((await area.inputValue()).includes('flowchart'), 'Revert follows the canvas again');
+
+    // Find, its own text size, and the colour under the caret.
+    await page.locator('.code-panel__toolbar button[title^="Find"]').click();
+    await page.locator('input[aria-label="Find in code"]').fill('subgraph');
+    await page.waitForTimeout(250);
+    const count = await page.locator('.code-panel__find-count').textContent();
+    assert(/^1\/\d+$/.test((count ?? '').trim()), `find reports the match it is on (${count})`);
+    await page.locator('button[aria-label="Close find"]').click();
+
+    const before = await area.evaluate((element) => getComputedStyle(element).fontSize);
+    await page.locator('button[aria-label="Larger text"]').click();
+    const after = await area.evaluate((element) => getComputedStyle(element).fontSize);
+    assert(Number.parseFloat(after) > Number.parseFloat(before), `Larger text resizes only the editor (${before} → ${after})`);
+
+    const swatch = await page.evaluate(async () => {
+      const input = document.querySelector('.code-panel__area');
+      const at = input.value.indexOf('#4b9fff');
+      if (at < 0) return 'no colour in the sample';
+      input.focus();
+      input.setSelectionRange(at + 2, at + 2);
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      return document.querySelector('.code-panel__swatch-text')?.textContent ?? '';
+    });
+    assert(/#4b9fff/.test(swatch), `the swatch reads the colour under the caret (${swatch})`);
+
+    // A syntax error is reported, and the diagram keeps its cards.
+    await area.fill('subgraph s["S"]\n  a["A"]');
+    await page.getByRole('button', { name: 'Apply' }).click();
+    await page.waitForTimeout(300);
+    assert(
+      /never closed/.test((await page.locator('.code-panel__error').textContent()) ?? ''),
+      'the panel names the problem',
+    );
+    assert((await countNodes()) > 5, 'a failed apply leaves the canvas alone');
+
+    await area.fill('web["Web"] host: "10.9.9.9" ports: "80/http"\ndb["Db"]\nweb -->|SQL| db');
+    await page.getByRole('button', { name: 'Apply' }).click();
+    await page.waitForTimeout(700);
+
+    const header = await page.locator('.code-panel__head').textContent();
+    assert(/2 nodes/.test(header ?? ''), `the header counts the rebuilt layer (${header ?? ''})`);
+    assert((await countNodes()) <= 3, 'the rest of the layer went away');
+    assert(
+      /following the canvas/.test((await page.locator('.code-panel__state').textContent()) ?? ''),
+      'the code follows the new document',
+    );
+
+    // Put the sample back for the steps that follow, then close the panel.
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    await page.waitForTimeout(600);
+    assert((await countNodes()) > 5, 'one undo restored the layer');
+    await page.getByRole('button', { name: 'Hide code panel' }).click();
+    await page.waitForTimeout(200);
+  });
+
   await step('an XML import is reviewed before it lands', async () => {
     const before = await countNodes();
     await page.locator('input[type="file"]').first().setInputFiles(scanPath);
@@ -385,6 +498,27 @@ async function main() {
     await box.fill('');
     await page.waitForTimeout(300);
     assert((await box.count()) === 1, 'the row stays while it is empty');
+  });
+
+  await step('an address can be added to a card with none', async () => {
+    // A card whose address rows were removed used to swallow + Add address: the
+    // blank row collapsed back to no rows, so no text box ever appeared.
+    const removeRow = page.getByRole('button', { name: 'Remove Address 1' });
+    for (let guard = 0; guard < 5 && (await removeRow.count()) > 0; guard += 1) {
+      await removeRow.first().click();
+      await page.waitForTimeout(200);
+    }
+    assert((await page.locator('input[aria-label^="Address "]').count()) === 0, 'the address list is empty');
+
+    await page.getByRole('button', { name: '+ Add address' }).click();
+    await page.waitForTimeout(250);
+    const address = page.locator('input[aria-label="Address 1"]');
+    assert((await address.count()) === 1, 'adding an address opens a text box for it');
+    await address.fill('10.9.9.9');
+    await page.waitForTimeout(300);
+    assert((await address.inputValue()) === '10.9.9.9', 'the address can be typed into it');
+    const card = await page.locator('.react-flow__node.selected').first().innerText();
+    assert(card.includes('10.9.9.9'), 'the card shows the address');
   });
 
   await step('a draw.io diagram opens as cards and sections', async () => {

@@ -143,6 +143,22 @@ const TIP_GROUPS: { title: string; tips: Tip[] }[] = [
         what: 'Opens a .drawio file, recognised by its content rather than its name, so a drawing made in diagrams.net or one exported from here and edited there comes back as cards. A shape with an address in its label becomes a host card (ports, MAC, hostname and the emblem above the title are read from it), a shape drawn around other shapes becomes a section, a shape with neither becomes a note, and lines become connections with their sides and arrowheads. The preview counts what it found; opening it replaces the diagram, and undo brings the previous one back.',
       },
       {
+        keys: '</> (code panel)',
+        what: 'Edits the active layer as text. The panel follows the canvas until you type; Apply (Ctrl+Enter) rebuilds that layer from the code as one undoable step and centres it where the layer was. Nodes, sections (subgraphs), notes, connections, icons, accents, host details and risk levels all round-trip.',
+      },
+      {
+        keys: 'Code panel → tools',
+        what: 'The code is colour-highlighted, with a numbered gutter and a tinted current line. The toolbar carries A− / A+ for the editor’s own text size (Ctrl with +, − or 0; remembered per browser), ↶ ↷ for the panel’s own undo and redo (Ctrl+Z / Ctrl+Shift+Z – the diagram has its own history), Find (Ctrl+F: match count, previous/next, match case, regular expressions, replace one or all), Expand / Compact to reflow attributes onto indented continuation lines, and a colour swatch that appears when the caret is on a #hex or rgb(…) value. Drag the panel’s left edge to widen it: it grows to the middle of the window, and the width is remembered.',
+      },
+      {
+        keys: 'Code panel → multi-line cards',
+        what: 'An indented key: value line continues the statement above it, so a card can spread its attributes over several lines for a cleaner look: web["Web"] kind: host, then icon: on its own line, then host: / hostname:, then ports:. Blank lines and comments do not break the join, and Expand writes the wrapped form for you.',
+      },
+      {
+        keys: 'Code syntax',
+        what: 'flowchart LR | TB | RL | BT sets the flow direction. Each line is one node: web["Web server"] host: "10.0.0.5" ports: "80/http,443/https", memo>Note] notes: "free text", or just web for a bare card. subgraph dmz["DMZ"] … end groups cards into a section, and an id used before it is declared is created for you. Edges use Mermaid arrows (-->, -.->, <-->, ---) with |labels| and optional style:, path:, from:, to:, arrow: and kind:. risk: Critical = 21, 23 ; High = 445 sets the diagram’s risk levels, and # or %% starts a comment.',
+      },
+      {
         keys: 'Save',
         what: 'The shortcut beside the filter saves the whole diagram as a design file – the same export as Import / Export → Design file (.json).',
       },
