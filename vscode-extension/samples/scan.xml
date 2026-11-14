@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///usr/share/nmap/nmap.xsl" type="text/xsl"?>
+<!-- A small -sS -sV -O run, trimmed. Try it with "NMAP2Flowchart: Import Nmap Scan (XML)…". -->
+<nmaprun scanner="nmap" args="nmap -sS -sV -O -oX scan.xml 10.0.0.0/24" start="1700000000" version="7.94" xmloutputversion="1.05">
+<scaninfo type="syn" protocol="tcp" numservices="1000" services="1-1000"/>
+<verbose level="0"/>
+<debugging level="0"/>
+
+<host starttime="1700000004" endtime="1700000030">
+  <status state="up" reason="echo-reply"/>
+  <address addr="10.0.0.1" addrtype="ipv4"/>
+  <address addr="00:50:56:C0:00:08" addrtype="mac" vendor="VMware"/>
+  <hostnames>
+    <hostname name="gateway.lab" type="PTR"/>
+  </hostnames>
+  <ports>
+    <extraports state="closed" count="997"/>
+    <port protocol="tcp" portid="22">
+      <state state="open" reason="syn-ack"/>
+      <service name="ssh" product="OpenSSH" version="9.6"/>
+    </port>
+    <port protocol="tcp" portid="443">
+      <state state="open" reason="syn-ack"/>
+      <service name="https" product="nginx" version="1.24.0" tunnel="ssl"/>
+    </port>
+    <port protocol="tcp" portid="3389">
+      <state state="open" reason="syn-ack"/>
+      <service name="ms-wbt-server" product="Microsoft Terminal Services"/>
+    </port>
+  </ports>
+  <os>
+    <osmatch name="Linux 5.15 - 6.1" accuracy="98" line="4"/>
+  </os>
+</host>
+
+<host starttime="1700000009" endtime="1700000042">
+  <status state="up" reason="syn-ack"/>
+  <address addr="10.0.0.10" addrtype="ipv4"/>
+  <address addr="00:50:56:C0:00:0A" addrtype="mac" vendor="VMware"/>
+  <hostnames>
+    <hostname name="web.lab" type="PTR"/>
+  </hostnames>
+  <ports>
+    <extraports state="closed" count="998"/>
+    <port protocol="tcp" portid="80">
+      <state state="open" reason="syn-ack"/>
+      <service name="http" product="nginx" version="1.24.0"/>
+    </port>
+    <port protocol="tcp" portid="443">
+      <state state="open" reason="syn-ack"/>
+      <service name="https" product="nginx" version="1.24.0" tunnel="ssl"/>
+    </port>
+  </ports>
+  <os>
+    <osmatch name="Linux 5.15 - 6.1" accuracy="95" line="4"/>
+  </os>
+</host>
+
+<host starttime="1700000012" endtime="1700000055">
+  <status state="up" reason="syn-ack"/>
+  <address addr="10.0.0.11" addrtype="ipv4"/>
+  <address addr="00:50:56:C0:00:0B" addrtype="mac" vendor="VMware"/>
+  <hostnames>
+    <hostname name="db.lab" type="PTR"/>
+  </hostnames>
+  <ports>
+    <extraports state="closed" count="996"/>
+    <port protocol="tcp" portid="22">
+      <state state="open" reason="syn-ack"/>
+      <service name="ssh" product="OpenSSH" version="9.6"/>
+    </port>
+    <port protocol="tcp" portid="5432">
+      <state state="open" reason="syn-ack"/>
+      <service name="postgresql" product="PostgreSQL DB" version="16.1"/>
+    </port>
+    <port protocol="tcp" portid="6379">
+      <state state="open" reason="syn-ack"/>
+      <service name="redis" product="Redis key-value store" version="7.2.3"/>
+    </port>
+    <port protocol="tcp" portid="9200">
+      <state state="open" reason="syn-ack"/>
+      <service name="http" product="Elasticsearch REST API" version="8.11.1"/>
+    </port>
+  </ports>
+  <os>
+    <osmatch name="Linux 5.15 - 6.1" accuracy="97" line="4"/>
+  </os>
+</host>
+
+<runstats>
+  <finished time="1700000100" timestr="Tue Nov 14 23:48:20 2026" elapsed="100" summary="Nmap done at Tue Nov 14 23:48:20 2026; 256 IP addresses (3 hosts up) scanned in 100.00 seconds" exit="success"/>
+  <hosts up="3" down="253" total="256"/>
+</runstats>
+</nmaprun>

@@ -1,0 +1,8 @@
+node_modules/
+out/
+*.vsix
+archive/
+
+# Local release tooling: the version you publish is your own business.
+PUBLISHING.md
+RELEASE.ps1

@@ -1,0 +1,43 @@
+{
+  "Diagram header": {
+    "prefix": "header",
+    "body": [
+      "%% ${1:Lab topology}",
+      "flowchart ${2|LR,TB,RL,BT|}",
+      "layer: \"${3:Diagram}\" color: #${4:4b9fff}"
+    ],
+    "description": "A comment, the flow direction and the layer name."
+  },
+  "Host card with details": {
+    "prefix": "host",
+    "body": [
+      "${1:web}[\"${2:Web server}\"] kind: host icon: \"${3:server}\" host: \"${4:10.0.0.10}\" hostname: \"${5:web.lab}\" ports: \"${6:80/http, 443/https}\""
+    ],
+    "description": "A host card with its address, hostname and open ports."
+  },
+  "Section (subgraph)": {
+    "prefix": "section",
+    "body": ["subgraph ${1:dmz}[\"${2:DMZ}\"] cidr: \"${3:10.0.0.0/24}\"", "  ${4:web}[\"${5:Web server}\"] host: \"${6:10.0.0.10}\"", "end"],
+    "description": "A subnet frame with one card inside it."
+  },
+  "Note": {
+    "prefix": "note",
+    "body": ["${1:memo}>${2:Remember}] notes: \"${3:Rotate the keys every quarter}\""],
+    "description": "A note card with free text."
+  },
+  "Connection": {
+    "prefix": "edge",
+    "body": ["${1:web} -->|${2:HTTPS}| ${3:db}"],
+    "description": "A connection with a label."
+  },
+  "Connection with a route style": {
+    "prefix": "route",
+    "body": ["${1:origin} --- ${2:router} style: dashed path: smoothstep arrow: none kind: route"],
+    "description": "A dashed route line with no arrowhead, the way a traceroute reads."
+  },
+  "Risk levels": {
+    "prefix": "risk",
+    "body": ["risk: Critical = ${1:21, 23, 3389} #${2:e5484d} ; High = ${3:445, 1433} #${4:f08c2e}"],
+    "description": "The diagram's risk levels, highest first."
+  }
+}

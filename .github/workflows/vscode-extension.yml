@@ -1,0 +1,216 @@
+name: VS Code extension release
+
+# Builds `vscode-extension/` and publishes the .vsix on the rolling `vscode-latest`
+# release, so installing needs nothing but the file:
+#
+#   code --install-extension nmap2flowchart.vsix
+#
+# Nothing to configure and nothing to click: a push to the default branch rebuilds and
+# republishes. A `vscode-v<version>` tag additionally publishes a versioned release,
+# and refuses to run when the tag and `vscode-extension/package.json` disagree. Pull
+# requests only build and test.
+#
+# Publishing to the Visual Studio Marketplace is opt-in: set the repository variable
+# `PUBLISH_MARKETPLACE=true` and add a Trusted Publishing policy for this workflow in the
+# publisher portal (no token secret involved).
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['vscode-v*']
+  pull_request:
+    paths:
+      - 'vscode-extension/**'
+      - 'App/src/**'
+      - '.github/workflows/vscode-extension.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vscode-extension-release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RELEASE_TAG: vscode-latest
+  ASSET: nmap2flowchart.vsix
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vscode-extension
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: vscode-extension/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # `verify` = sync:check (the copy of App/src is current) + typecheck + bundle +
+      # the parser, grammar, scan-import and extension-host tests.
+      - name: Verify
+        run: npm run verify
+
+      # `vsce` runs `vscode:prepublish` (sync, typecheck, bundle) itself, so the packed
+      # tree is the one `verify` just passed.
+      - name: Package
+        run: |
+          set -euo pipefail
+          npx --no-install @vscode/vsce package --no-dependencies --out "$ASSET"
+          sha256sum "$ASSET" > "$ASSET.sha256"
+          cat "$ASSET.sha256"
+
+      - name: Upload the vsix
+        uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: |
+            vscode-extension/nmap2flowchart.vsix
+            vscode-extension/nmap2flowchart.vsix.sha256
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/heads/') || startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Download the vsix
+        uses: actions/download-artifact@v4
+        with:
+          name: vsix
+          path: assets
+
+      - name: Write the release notes
+        env:
+          COMMIT: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./vscode-extension/package.json').version")
+          echo "version=$version" >> "$GITHUB_ENV"
+
+          # A quoted delimiter keeps the backticks literal; the placeholders are filled
+          # in below, and the block's YAML indentation is stripped so the markdown is
+          # not read as an indented code block.
+          cat > notes.md <<'MARKDOWN'
+          The [NMAP2Flowchart VS Code extension](https://github.com/__REPOSITORY__/tree/main/vscode-extension),
+          version `__VERSION__`: syntax highlighting and a live, light-or-dark flowchart preview for
+          `.n2f` network diagrams, plus **NMAP2Flowchart: Import Nmap Scan (XML)…** for `nmap -oX`
+          output.
+
+          ## Install
+
+          ```bash
+          code --install-extension nmap2flowchart.vsix
+          ```
+
+          Or **Extensions → ⋯ → Install from VSIX…** in VS Code. No Marketplace account needed.
+
+          Then open a `.n2f` file, or run **NMAP2Flowchart: Import Nmap Scan (XML)…** on a scan. The
+          [extension README](https://github.com/__REPOSITORY__/tree/main/vscode-extension) covers the
+          format, the commands and the settings.
+
+          ## Verify
+
+          ```bash
+          sha256sum -c nmap2flowchart.vsix.sha256    # Windows: certutil -hashfile nmap2flowchart.vsix SHA256
+          ```
+
+          ---
+
+          Built from `__COMMIT__` on __DATE__.
+          MARKDOWN
+
+          sed -i \
+            -e 's/^ *//' \
+            -e "s|__REPOSITORY__|${REPOSITORY}|g" \
+            -e "s/__VERSION__/${version}/" \
+            -e "s/__COMMIT__/${COMMIT:0:7}/" \
+            -e "s|__DATE__|$(date -u '+%Y-%m-%d %H:%M UTC')|" \
+            notes.md
+          cat notes.md
+
+      - name: Publish the rolling release
+        if: startsWith(github.ref, 'refs/heads/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          title="NMAP2Flowchart for VS Code (latest)"
+          if gh release view "$RELEASE_TAG" --repo "$repo" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" --repo "$repo" --title "$title" --notes-file notes.md
+          else
+            gh release create "$RELEASE_TAG" --repo "$repo" --title "$title" \
+              --notes-file notes.md --target "$GITHUB_SHA"
+          fi
+          gh release upload "$RELEASE_TAG" --repo "$repo" assets/* --clobber
+          gh release view "$RELEASE_TAG" --repo "$repo" --json url,assets --jq '{url, assets: [.assets[].name]}'
+
+      - name: Publish the tagged release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag_version=${GITHUB_REF_NAME#vscode-v}
+          if [ "$tag_version" != "$version" ]; then
+            echo "::error::$GITHUB_REF_NAME does not match version $version in vscode-extension/package.json"
+            exit 1
+          fi
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "NMAP2Flowchart for VS Code $version" --notes-file notes.md
+          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" assets/*
+
+  marketplace:
+    # Skipped unless `PUBLISH_MARKETPLACE` is 'true' (a repository variable) and a
+    # Trusted Publishing policy for this workflow exists. Without both, the GitHub
+    # releases above are the whole release.
+    needs: [build, release]
+    if: vars.PUBLISH_MARKETPLACE == 'true' && startsWith(github.ref, 'refs/tags/vscode-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: vscode-extension/package-lock.json
+
+      - name: Install dependencies
+        working-directory: vscode-extension
+        run: npm ci
+
+      - name: Download the vsix
+        uses: actions/download-artifact@v4
+        with:
+          name: vsix
+          path: assets
+
+      - name: Publish to the Marketplace
+        working-directory: vscode-extension
+        run: |
+          set -euo pipefail
+          npx --no-install @vscode/vsce publish --oidc --packagePath ../assets/nmap2flowchart.vsix

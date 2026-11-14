@@ -1,0 +1,21 @@
+%% Lab topology – the diagram the extension renders on the right
+flowchart LR
+layer: "Lab" color: #4b9fff
+risk: Critical = 1-22,23, 3389 #e5484d ; High = 445, 5900 #f08c2e ; Low = 80, 443 #e3c53d
+
+subgraph dmz["DMZ"] cidr: "10.0.0.0/24"
+  web["Web server"] kind: host icon: "server" host: "10.0.0.10" hostname: "web.lab" ports: "80/http, 443/https"
+  db["Database"] kind: host icon: "database" host: "10.0.0.11" hostname: "db.lab" ports: "5432/postgresql"
+end
+
+subgraph office["Office"] cidr: "10.0.1.0/24"
+  ws["Workstation"] kind: host icon: "desktop" host: "10.0.1.20" hostname: "ws-01.lab" ports: "3389/ms-wbt-server"
+  printer["Printer"] kind: host icon: "printer" host: "10.0.1.30" ports: "631/ipp, 9100/jetdirect"
+end
+
+router["Gateway"] kind: host icon: "router" host: "10.0.0.1" ports: "23/telnet, 22/ssh"
+memo>Remember] notes: "Rotate the keys every quarter"
+
+router --> dmz
+router --> office
+web -->|SQL| db

@@ -1,0 +1,14 @@
+src/**
+scripts/**
+node_modules/**
+tsconfig.json
+esbuild.mjs
+.gitignore
+**/*.map
+**/*.test.mjs
+.vscode/**
+*.vsix
+# The README loads these from raw.githubusercontent, so they need not ship.
+media/screenshot-*.png
+PUBLISHING.md
+RELEASE.ps1

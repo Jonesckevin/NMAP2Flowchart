@@ -1,0 +1,207 @@
+{
+  "name": "nmap2flowchart",
+  "displayName": "NMAP2Flowchart",
+  "description": "Write NMAP2Flowchart network diagrams as code, or import an nmap XML scan: syntax highlighting and a live, light-or-dark flowchart preview beside the editor.",
+  "version": "0.2.0",
+  "publisher": "jonesckevin",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "nmap",
+    "network",
+    "diagram",
+    "flowchart",
+    "topology",
+    "mermaid",
+    "preview",
+    "infrastructure"
+  ],
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#0f141b",
+    "theme": "dark"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Jonesckevin/NMAP2Flowchart",
+    "directory": "vscode-extension"
+  },
+  "homepage": "https://github.com/Jonesckevin/NMAP2Flowchart/tree/main/vscode-extension",
+  "bugs": {
+    "url": "https://github.com/Jonesckevin/NMAP2Flowchart/issues"
+  },
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:n2f"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "n2f",
+        "aliases": [
+          "NMAP2Flowchart",
+          "n2f"
+        ],
+        "extensions": [
+          ".n2f",
+          ".n2fcode"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "n2f",
+        "scopeName": "source.n2f",
+        "path": "./syntaxes/n2f.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "n2f",
+        "path": "./snippets/n2f.code-snippets"
+      }
+    ],
+    "commands": [
+      {
+        "command": "n2f.openPreview",
+        "title": "Open Flowchart Preview",
+        "category": "NMAP2Flowchart",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "n2f.exportSvg",
+        "title": "Export Diagram as SVG…",
+        "category": "NMAP2Flowchart",
+        "icon": "$(export)"
+      },
+      {
+        "command": "n2f.importNmap",
+        "title": "Import Nmap Scan (XML)…",
+        "category": "NMAP2Flowchart",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "n2f.togglePreviewTheme",
+        "title": "Toggle Dark Preview",
+        "category": "NMAP2Flowchart",
+        "icon": "$(color-mode)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "n2f.importNmap",
+          "when": "view == workbench.explorer.fileView",
+          "group": "navigation@1"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "n2f.importNmap",
+          "when": "resourceLangId == xml",
+          "group": "navigation"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "n2f.openPreview",
+          "when": "editorLangId == n2f",
+          "group": "navigation"
+        },
+        {
+          "command": "n2f.togglePreviewTheme",
+          "when": "editorLangId == n2f",
+          "group": "navigation"
+        },
+        {
+          "command": "n2f.importNmap",
+          "when": "editorLangId == n2f",
+          "group": "navigation@2"
+        },
+        {
+          "command": "n2f.togglePreviewTheme",
+          "when": "activeWebviewPanelId == n2f.preview",
+          "group": "navigation"
+        },
+        {
+          "command": "n2f.importNmap",
+          "when": "editorLangId == xml",
+          "group": "navigation@1"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "n2f.openPreview",
+          "when": "editorLangId == n2f",
+          "group": "navigation"
+        },
+        {
+          "command": "n2f.exportSvg",
+          "when": "editorLangId == n2f",
+          "group": "navigation"
+        },
+        {
+          "command": "n2f.importNmap",
+          "when": "editorLangId == xml",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "NMAP2Flowchart",
+      "properties": {
+        "n2f.preview.autoOpen": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Open the flowchart preview automatically whenever a `.n2f` diagram becomes the active editor."
+        },
+        "n2f.preview.theme": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "light",
+            "dark"
+          ],
+          "enumDescriptions": [
+            "Follow the editor's colour theme.",
+            "Always draw the diagram on a light page.",
+            "Always draw the diagram on a dark page."
+          ],
+          "default": "auto",
+          "markdownDescription": "Colour theme of the flowchart preview. `auto` follows the editor's colour theme; `light` and `dark` force one. The **NMAP2Flowchart: Toggle Dark Preview** command (the ☀/☾ button on the preview's title bar) writes this setting, and `Export Diagram as SVG` always uses the light palette so the file stays printable."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "sync": "node scripts/sync-core.mjs",
+    "sync:check": "node scripts/sync-core.mjs --check",
+    "check": "tsc --noEmit",
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "test": "node scripts/test.mjs",
+    "verify": "npm run sync:check && npm run check && npm run build && npm run test",
+    "package": "npm run build && vsce package --no-dependencies",
+    "vscode:prepublish": "npm run sync && npm run check && npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.2.1",
+    "esbuild": "^0.28.2",
+    "fast-xml-parser": "^5.12.0",
+    "react": "^19.3.1",
+    "typescript": "~7.0.2",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.3.2"
+  }
+}

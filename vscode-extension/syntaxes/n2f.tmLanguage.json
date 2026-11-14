@@ -1,0 +1,106 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "NMAP2Flowchart",
+  "scopeName": "source.n2f",
+  "fileTypes": [
+    "n2f",
+    "n2fcode"
+  ],
+  "patterns": [
+    {
+      "include": "#comment"
+    },
+    {
+      "include": "#directive"
+    },
+    {
+      "include": "#string"
+    },
+    {
+      "include": "#edgeLabel"
+    },
+    {
+      "include": "#arrow"
+    },
+    {
+      "include": "#colour"
+    },
+    {
+      "include": "#attribute"
+    },
+    {
+      "include": "#number"
+    },
+    {
+      "include": "#identifier"
+    },
+    {
+      "include": "#punctuation"
+    }
+  ],
+  "repository": {
+    "comment": {
+      "match": "^\\s*(?:#|%%).*$",
+      "name": "comment.line.number-sign.n2f"
+    },
+    "directive": {
+      "match": "\\b(?:flowchart|graph|subgraph|end|direction|layer|risk)\\b",
+      "name": "keyword.control.n2f"
+    },
+    "string": {
+      "begin": "\"",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.begin.n2f"
+        }
+      },
+      "end": "\"",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.end.n2f"
+        }
+      },
+      "name": "string.quoted.double.n2f",
+      "patterns": [
+        {
+          "match": "\\\\.",
+          "name": "constant.character.escape.n2f"
+        }
+      ]
+    },
+    "edgeLabel": {
+      "begin": "\\|",
+      "end": "\\|",
+      "name": "string.unquoted.label.n2f",
+      "patterns": [
+        {
+          "include": "#string"
+        }
+      ]
+    },
+    "arrow": {
+      "match": "<-\\.->|<-->|<==>|<-.-|<---|<==|<--|-\\.->|==>|---|-\\.-|===|-->|--|==",
+      "name": "keyword.operator.arrow.n2f"
+    },
+    "colour": {
+      "match": "#[0-9a-fA-F]{3,6}\\b",
+      "name": "constant.other.color.rgb-value.n2f"
+    },
+    "attribute": {
+      "match": "\\b[A-Za-z_][\\w-]*(?=\\s*:)",
+      "name": "entity.name.tag.attribute.n2f"
+    },
+    "number": {
+      "match": "\\b\\d+(?:\\.\\d+)?\\b",
+      "name": "constant.numeric.n2f"
+    },
+    "identifier": {
+      "match": "[A-Za-z_][\\w.:-]*",
+      "name": "variable.other.node.n2f"
+    },
+    "punctuation": {
+      "match": "[\\[\\](){}>]",
+      "name": "punctuation.definition.n2f"
+    }
+  }
+}
